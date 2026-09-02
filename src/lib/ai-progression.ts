@@ -1,9 +1,12 @@
 import { db } from "@/lib/db";
 import { formatIndianDate } from "@/lib/date-utils";
+import { SKILL_ROADMAP_161 } from "@/lib/skills-data";
 
 export type AIProgressionResult = {
   exerciseName: string;
   hasHistory: boolean;
+  roadmapTarget: string | null;
+  roadmapNumeric: number | null;
   lastLogged: {
     actualReps: number | null;
     actualTime: number | null;
@@ -22,14 +25,21 @@ export type AIProgressionResult = {
 };
 
 /**
- * Calculates adaptive AI progressive overload targets based on the user's previous performance.
+ * Calculates adaptive AI progressive overload targets based on previous performance & Skill Roadmap benchmarks.
  */
 export async function getAIProgressionForExercise(
   userId: string,
   exerciseName: string,
   baselineTarget?: string | null
 ): Promise<AIProgressionResult> {
-  // Find recent completed session logs for this user & exercise
+  // 1. Look up skill in 161 Calisthenics Skill Tree Roadmap
+  const trimmedName = exerciseName.trim().toLowerCase();
+  const matchedSkill = SKILL_ROADMAP_161.find((s) =>
+    s.exerciseMatch.some((m) => m.trim().toLowerCase() === trimmedName) ||
+    s.name.trim().toLowerCase() === trimmedName
+  );
+
+  // 2. Find recent completed session logs for this user & exercise
   const recentLogs = await db.sessionLog.findMany({
     where: {
       exerciseName,
@@ -41,25 +51,38 @@ export async function getAIProgressionForExercise(
     include: { workout: { select: { scheduledFor: true, dayName: true } } },
   });
 
-  const isTimeBased = baselineTarget ? (
+  const isTimeBased = matchedSkill ? matchedSkill.isTimeBased : baselineTarget ? (
     baselineTarget.toLowerCase().includes("sec") ||
     baselineTarget.toLowerCase().includes("min") ||
     baselineTarget.toLowerCase().includes("hold")
   ) : false;
 
+  const roadmapTargetMetric = matchedSkill?.targetMetric || baselineTarget || null;
+  const roadmapNumeric = matchedSkill?.targetNumeric || null;
+
+  // If no previous history logged yet
   if (recentLogs.length === 0) {
+    let firstTargetStr = baselineTarget || "Baseline Set";
+    let firstTip = `First time logging ${exerciseName}. Focus on clean form and log your true numbers!`;
+
+    if (matchedSkill) {
+      firstTip = `Roadmap Benchmark: ${matchedSkill.targetMetric}. Establish your baseline today and AI will scale your numbers step-by-step!`;
+    }
+
     return {
       exerciseName,
       hasHistory: false,
+      roadmapTarget: roadmapTargetMetric,
+      roadmapNumeric,
       lastLogged: null,
       aiTarget: {
         targetReps: null,
         targetTime: null,
         targetWeight: null,
-        displayText: baselineTarget || "Baseline Set",
-        overloadText: "First Session — Establish your baseline!",
+        displayText: firstTargetStr,
+        overloadText: matchedSkill ? `Target: ${matchedSkill.targetMetric}` : "First Session — Establish baseline!",
       },
-      coachingTip: `First time logging ${exerciseName}. Focus on clean form and log your true numbers!`,
+      coachingTip: firstTip,
     };
   }
 
@@ -88,30 +111,57 @@ export async function getAIProgressionForExercise(
 
   let aiTargetReps: number | null = null;
   let aiTargetTime: number | null = null;
-  let aiTargetWeight: number | null = null;
   let displayText = "";
   let overloadText = "";
   let coachingTip = "";
 
   if (isTimeBased || maxTime !== null) {
-    const lastTime = maxTime || 15;
-    // Overload +5 seconds for hold exercises
-    aiTargetTime = lastTime + 5;
+    const lastTime = maxTime || 10;
+    // Step up +2 to +5 seconds toward roadmap hold target
+    const step = lastTime < 30 ? 3 : 5;
+    aiTargetTime = lastTime + step;
+
+    // Cap at roadmap target if reached
+    if (roadmapNumeric && aiTargetTime > roadmapNumeric) {
+      aiTargetTime = roadmapNumeric;
+    }
+
     displayText = `${aiTargetTime} sec`;
-    overloadText = `+5 sec growth goal (Last: ${lastTime} sec)`;
-    coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${lastTime} sec. Today's AI Overload Goal is ${aiTargetTime} sec!`;
+    overloadText = `+${step} sec growth step (Last: ${lastTime} sec)`;
+    
+    if (roadmapNumeric) {
+      const pct = Math.min(100, Math.round((lastTime / roadmapNumeric) * 100));
+      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${lastTime}s (${pct}% of target). Today's AI Goal is ${aiTargetTime}s to build toward your ${roadmapTargetMetric} benchmark!`;
+    } else {
+      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${lastTime}s. Today's AI Overload Goal is ${aiTargetTime}s!`;
+    }
   } else {
     const lastReps = maxReps || 8;
-    // Overload +2 reps for rep exercises
-    aiTargetReps = lastReps + 2;
+    // Step up +2 to +3 reps toward roadmap rep target
+    const step = lastReps < 15 ? 2 : 3;
+    aiTargetReps = lastReps + step;
+
+    // Cap at roadmap target if reached
+    if (roadmapNumeric && aiTargetReps > roadmapNumeric) {
+      aiTargetReps = roadmapNumeric;
+    }
+
     displayText = `${aiTargetReps} reps`;
-    overloadText = `+2 reps growth goal (Last: ${lastReps} reps)`;
-    coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you hit ${lastReps} reps. Today's AI Overload Goal is ${aiTargetReps} reps!`;
+    overloadText = `+${step} reps growth step (Last: ${lastReps} reps)`;
+
+    if (roadmapNumeric) {
+      const pct = Math.min(100, Math.round((lastReps / roadmapNumeric) * 100));
+      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you hit ${lastReps} reps (${pct}% of target). Today's AI Goal is ${aiTargetReps} reps to build toward your ${roadmapTargetMetric} benchmark!`;
+    } else {
+      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you hit ${lastReps} reps. Today's AI Overload Goal is ${aiTargetReps} reps!`;
+    }
   }
 
   return {
     exerciseName,
     hasHistory: true,
+    roadmapTarget: roadmapTargetMetric,
+    roadmapNumeric,
     lastLogged: {
       actualReps: maxReps,
       actualTime: maxTime,
