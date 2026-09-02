@@ -974,22 +974,59 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
               />
             </div>
           )}
-          {targetIsTime && (
-            <div className="flex-1 space-y-0.5">
-              <div className="flex items-center justify-between px-0.5">
-                <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (Sec)</label>
-                {liveHumanTime && <span className="text-[10px] font-bold text-primary">{liveHumanTime}</span>}
+          {targetIsTime && (() => {
+            const totalSec = timeSec ? parseInt(timeSec) || 0 : 0;
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+
+            const handleTimeChange = (type: 'h' | 'm' | 's', val: string) => {
+              const num = val ? parseInt(val) || 0 : 0;
+              let newH = h, newM = m, newS = s;
+              if (type === 'h') newH = num;
+              if (type === 'm') newM = num;
+              if (type === 's') newS = num;
+              const newTotal = newH * 3600 + newM * 60 + newS;
+              setTimeSec(newTotal > 0 ? newTotal.toString() : "");
+            };
+
+            return (
+              <div className="flex-[1.5] space-y-0.5">
+                <div className="flex items-center justify-between px-0.5">
+                  <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (H:M:S)</label>
+                  {aiTargetTime && !timeSec && <span className="text-[9px] font-medium text-purple-500">AI: {formatHumanTime(aiTargetTime)}</span>}
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    placeholder="h"
+                    value={h > 0 ? h : ""}
+                    onChange={e => handleTimeChange('h', e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className="h-8 w-full min-w-0 rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring px-1"
+                  />
+                  <span className="text-muted-foreground text-xs font-bold">:</span>
+                  <input
+                    type="number"
+                    placeholder="m"
+                    value={timeSec ? m : ""}
+                    onChange={e => handleTimeChange('m', e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className="h-8 w-full min-w-0 rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring px-1"
+                  />
+                  <span className="text-muted-foreground text-xs font-bold">:</span>
+                  <input
+                    type="number"
+                    placeholder="s"
+                    value={timeSec ? s : ""}
+                    onChange={e => handleTimeChange('s', e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                    className="h-8 w-full min-w-0 rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring px-1"
+                  />
+                </div>
               </div>
-              <input
-                type="number"
-                placeholder={aiTargetTime ? `${aiTargetTime}s (${formatHumanTime(aiTargetTime)})` : "—"}
-                value={timeSec}
-                onChange={e => setTimeSec(e.target.value)}
-                onClick={e => e.stopPropagation()}
-                className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-          )}
+            );
+          })()}
           <div className="flex-1 space-y-0.5">
             <label className="text-[9px] font-semibold uppercase text-muted-foreground">Weight (kg)</label>
             <input
