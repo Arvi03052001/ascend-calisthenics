@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { formatIndianDate } from "@/lib/date-utils";
+import { formatIndianDate, secondsToHHMMSS } from "@/lib/date-utils";
 import { SKILL_ROADMAP_161 } from "@/lib/skills-data";
 
 export type AIProgressionResult = {
@@ -126,14 +126,17 @@ export async function getAIProgressionForExercise(
       aiTargetTime = roadmapNumeric;
     }
 
-    displayText = `${aiTargetTime} sec`;
-    overloadText = `+${step} sec growth step (Last: ${lastTime} sec)`;
+    const formattedTarget = secondsToHHMMSS(aiTargetTime);
+    const formattedLast = secondsToHHMMSS(lastTime);
+
+    displayText = formattedTarget;
+    overloadText = `+${step}s growth step (Last: ${formattedLast})`;
     
     if (roadmapNumeric) {
       const pct = Math.min(100, Math.round((lastTime / roadmapNumeric) * 100));
-      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${lastTime}s (${pct}% of target). Today's AI Goal is ${aiTargetTime}s to build toward your ${roadmapTargetMetric} benchmark!`;
+      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${formattedLast} (${pct}% of target). Today's AI Goal is ${formattedTarget} to build toward your ${roadmapTargetMetric} benchmark!`;
     } else {
-      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${lastTime}s. Today's AI Overload Goal is ${aiTargetTime}s!`;
+      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${formattedLast}. Today's AI Overload Goal is ${formattedTarget}!`;
     }
   } else {
     const lastReps = maxReps || 8;

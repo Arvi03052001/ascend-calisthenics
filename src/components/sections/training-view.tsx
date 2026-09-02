@@ -19,6 +19,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { secondsToHHMMSS, hhmmssToSeconds } from "@/lib/date-utils";
 
 const PHASE_ORDER = ["Warm-Up", "Skill Work", "Main Strength", "Accessories", "Finisher", "Cooldown"];
 const PHASE_META: Record<string, { label: string; color: string }> = {
@@ -784,8 +785,16 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
       .catch(() => setAiProgression(null));
   }, [exercise.exerciseName, exercise.repsOrDuration]);
 
-  const targetIsTime = exercise.repsOrDuration && (exercise.repsOrDuration.toLowerCase().includes("sec") || exercise.repsOrDuration.toLowerCase().includes("min") || exercise.repsOrDuration.toLowerCase().includes("hold"));
-  const targetIsReps = exercise.repsOrDuration && !targetIsTime;
+  const targetIsTime = !!(exercise.repsOrDuration && (
+    exercise.repsOrDuration.toLowerCase().includes("sec") ||
+    exercise.repsOrDuration.toLowerCase().includes("min") ||
+    exercise.repsOrDuration.toLowerCase().includes("hold") ||
+    exercise.repsOrDuration.toLowerCase().includes("hang") ||
+    exercise.repsOrDuration.toLowerCase().includes("plank") ||
+    exercise.repsOrDuration.toLowerCase().includes("sit") ||
+    exercise.repsOrDuration.toLowerCase().includes("max")
+  ));
+  const targetIsReps = !targetIsTime;
 
   return (
     <Card className={cn("overflow-hidden transition-all", allDone && "border-emerald-500/30 bg-emerald-500/5")}>
@@ -802,7 +811,7 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
             {!expanded && allDone && entries.length > 0 && (
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {entries.map((e, i) => (
-                  <span key={e.id}>{i > 0 && " · "}{e.actualReps && `${e.actualReps}r`}{e.actualTime && `${e.actualTime}s`}{e.actualWeight ? `@${e.actualWeight}kg` : ""}</span>
+                  <span key={e.id}>{i > 0 && " · "}{e.actualReps && `${e.actualReps}r`}{e.actualTime && secondsToHHMMSS(e.actualTime)}{e.actualWeight ? `@${e.actualWeight}kg` : ""}</span>
                 ))}
               </p>
             )}
@@ -890,7 +899,7 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
 }) {
   const [reps, setReps] = React.useState(entry.actualReps?.toString() ?? "");
   const [weight, setWeight] = React.useState(entry.actualWeight?.toString() ?? "");
-  const [timeSec, setTimeSec] = React.useState(entry.actualTime?.toString() ?? "");
+  const [timeStr, setTimeStr] = React.useState(entry.actualTime ? secondsToHHMMSS(entry.actualTime) : "");
   const [notes, setNotes] = React.useState(entry.notes ?? "");
   const [completed, setCompleted] = React.useState(entry.completed);
   const [saving, setSaving] = React.useState(false);
@@ -899,25 +908,28 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
   React.useEffect(() => {
     setReps(entry.actualReps?.toString() ?? "");
     setWeight(entry.actualWeight?.toString() ?? "");
-    setTimeSec(entry.actualTime?.toString() ?? "");
+    setTimeStr(entry.actualTime ? secondsToHHMMSS(entry.actualTime) : "");
     setNotes(entry.notes ?? "");
     setCompleted(entry.completed);
   }, [entry.id, entry.actualReps, entry.actualWeight, entry.actualTime, entry.completed, entry.notes]);
+
+  const parsedTimeSec = hhmmssToSeconds(timeStr);
 
   // Track if user changed values after the last save
   const isDirty = completed && (
     reps !== (entry.actualReps?.toString() ?? "") ||
     weight !== (entry.actualWeight?.toString() ?? "") ||
-    timeSec !== (entry.actualTime?.toString() ?? "") ||
+    parsedTimeSec !== (entry.actualTime ?? null) ||
     (notes.trim() || "") !== (entry.notes ?? "")
   );
 
   function handleSave() {
     setSaving(true);
+    const parsedSec = hhmmssToSeconds(timeStr);
     onSave(entry.id, {
-      actualReps: reps ? parseInt(reps) : (aiTargetReps ?? null),
+      actualReps: targetIsReps ? (reps ? parseInt(reps) : (aiTargetReps ?? null)) : null,
       actualWeight: weight ? parseFloat(weight) : null,
-      actualTime: timeSec ? parseInt(timeSec) : (aiTargetTime ?? null),
+      actualTime: targetIsTime ? (parsedSec ?? (aiTargetTime ?? null)) : null,
       notes: notes.trim() || null,
       completed: true,
     });
@@ -963,12 +975,12 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
           )}
           {targetIsTime && (
             <div className="flex-1 space-y-0.5">
-              <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (sec)</label>
+              <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (HH:MM:SS)</label>
               <input
-                type="number"
-                placeholder={aiTargetTime ? `${aiTargetTime}s (AI)` : "—"}
-                value={timeSec}
-                onChange={e => setTimeSec(e.target.value)}
+                type="text"
+                placeholder={aiTargetTime ? `${secondsToHHMMSS(aiTargetTime)} (AI)` : "00:00:00"}
+                value={timeStr}
+                onChange={e => setTimeStr(e.target.value)}
                 onClick={e => e.stopPropagation()}
                 className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
