@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAuthUserId } from "@/lib/session";
 import { db } from "@/lib/db";
+import { getMonday } from "@/lib/date-utils";
 
-// GET /api/training-workout?dayIndex=0 — find existing workout for this day this week
+// GET /api/training-workout?dayIndex=0&weekStart=2026-08-31 — find existing workout
 export async function GET(req: Request) {
   const userId = await getAuthUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -11,19 +12,11 @@ export async function GET(req: Request) {
   const dayIndex = parseInt(url.searchParams.get("dayIndex") ?? "0");
   const weekStartParam = url.searchParams.get("weekStart");
 
-  // Calculate Monday of requested week or current week
-  let monday = new Date();
-  if (weekStartParam) {
-    const parsed = new Date(weekStartParam);
-    if (!isNaN(parsed.getTime())) monday = parsed;
-  }
-  monday.setHours(0, 0, 0, 0);
-  const dayOfWeek = monday.getDay();
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  monday.setDate(monday.getDate() + diff);
+  // Timezone-safe Monday calculation
+  const monday = getMonday(weekStartParam || undefined);
 
   const weekEnd = new Date(monday);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  weekEnd.setUTCDate(monday.getUTCDate() + 7);
 
   // Look for existing workout with this dayIndex in notes
   const workout = await db.workout.findFirst({
@@ -93,19 +86,11 @@ export async function POST(req: Request) {
   const dayName = planExercises[0].dayName;
   const focus = planExercises[0].focus;
 
-  // Calculate scheduled date
-  let monday = new Date();
-  if (weekStartBody) {
-    const parsed = new Date(weekStartBody);
-    if (!isNaN(parsed.getTime())) monday = parsed;
-  }
-  monday.setHours(0, 0, 0, 0);
-  const dayOfWeek = monday.getDay();
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  monday.setDate(monday.getDate() + diff);
+  // Timezone-safe scheduled date calculation
+  const monday = getMonday(weekStartBody || undefined);
 
   const scheduledFor = new Date(monday);
-  scheduledFor.setDate(monday.getDate() + dayIndex);
+  scheduledFor.setUTCDate(monday.getUTCDate() + dayIndex);
 
   // Create workout
   const workout = await db.workout.create({
@@ -121,7 +106,6 @@ export async function POST(req: Request) {
   });
 
   // Create session logs from the WeeklyPlan data — start with 1 set per exercise
-  // Users add more sets via the "+ Add Set" button as needed
   const sessionLogData = planExercises.map((ex) => {
     const targetIsTime = ex.repsOrDuration && (
       ex.repsOrDuration.toLowerCase().includes("sec") ||

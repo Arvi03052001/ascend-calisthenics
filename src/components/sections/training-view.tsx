@@ -90,14 +90,17 @@ export function TrainingView() {
   } | null>(null);
   const [loadingWeek, setLoadingWeek] = React.useState(true);
 
-  // Compute Monday date string based on weekOffset
+  // Compute Monday date string based on weekOffset in a timezone-safe manner
   const targetMondayStr = React.useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    const dayOfWeek = d.getDay();
+    const now = new Date();
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
+    const dayOfWeek = d.getUTCDay();
     const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    d.setDate(d.getDate() + diff + weekOffset * 7);
-    return d.toISOString().split("T")[0];
+    d.setUTCDate(d.getUTCDate() + diff + weekOffset * 7);
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }, [weekOffset]);
 
   const fetchWeekStatus = React.useCallback(() => {
