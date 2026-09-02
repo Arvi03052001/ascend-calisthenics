@@ -3,12 +3,15 @@ import { getAuthUserId } from "@/lib/session";
 import { getUserCheckpoints } from "@/lib/checkpoints-engine";
 import { db } from "@/lib/db";
 
-// GET /api/training-workout/checkpoints — get all 11 core checkpoints & lagging focus
-export async function GET() {
+// GET /api/training-workout/checkpoints?tier=Foundation
+export async function GET(req: Request) {
   const userId = await getAuthUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const data = await getUserCheckpoints(userId);
+  const url = new URL(req.url);
+  const tier = url.searchParams.get("tier") as any;
+
+  const data = await getUserCheckpoints(userId, tier && tier !== "all" ? tier : undefined);
   return NextResponse.json(data);
 }
 

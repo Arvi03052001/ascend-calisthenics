@@ -1,12 +1,16 @@
 import { db } from "@/lib/db";
+import { SKILL_ROADMAP_161, SkillTier, SkillCategory } from "@/lib/skills-data";
 
 export type CoreCheckpoint = {
+  num?: number;
   id: string;
   skillName: string;
-  category: "Hanging/Grip" | "Pushing" | "Core" | "Legs" | "Mobility";
+  tier?: SkillTier;
+  category: string;
   targetMetric: string;
   targetNumeric: number;
   isTimeBased: boolean;
+  isGateway?: boolean;
   achieved: boolean;
   bestValue: number;
   bestValueStr: string;
@@ -14,21 +18,7 @@ export type CoreCheckpoint = {
   status: "mastered" | "developing" | "lagging" | "not_started";
 };
 
-export const CORE_11_CHECKPOINTS = [
-  { id: "dead_hang", skillName: "Dead Hang", category: "Hanging/Grip" as const, targetMetric: "60 sec", targetNumeric: 60, isTimeBased: true, exerciseMatch: ["Dead Hang", "Passive Dead Hang"] },
-  { id: "active_hang", skillName: "Active Hang", category: "Hanging/Grip" as const, targetMetric: "30 sec", targetNumeric: 30, isTimeBased: true, exerciseMatch: ["Active Hang"] },
-  { id: "scapular_pullup", skillName: "Scapular Pull-Up", category: "Hanging/Grip" as const, targetMetric: "3 x 10", targetNumeric: 10, isTimeBased: false, exerciseMatch: ["Scapular Pull-Up", "Scapular Control"] },
-  { id: "pushup", skillName: "Push-Up", category: "Pushing" as const, targetMetric: "3 x 15", targetNumeric: 15, isTimeBased: false, exerciseMatch: ["Standard Push-Up", "Push-Up"] },
-  { id: "bench_dip", skillName: "Bench Dip", category: "Pushing" as const, targetMetric: "3 x 15", targetNumeric: 15, isTimeBased: false, exerciseMatch: ["Bench Dip"] },
-  { id: "hollow_hold", skillName: "Hollow Hold", category: "Core" as const, targetMetric: "45 sec", targetNumeric: 45, isTimeBased: true, exerciseMatch: ["Hollow Hold", "Hollow Body Hold"] },
-  { id: "leg_raise", skillName: "Lying Leg Raise", category: "Core" as const, targetMetric: "3 x 12", targetNumeric: 12, isTimeBased: false, exerciseMatch: ["Lying Leg Raise", "Reverse Crunch"] },
-  { id: "squat", skillName: "Bodyweight Squat", category: "Legs" as const, targetMetric: "3 x 20", targetNumeric: 20, isTimeBased: false, exerciseMatch: ["Bodyweight Squat"] },
-  { id: "split_squat", skillName: "Bulgarian Split Squat", category: "Legs" as const, targetMetric: "3 x 10/leg", targetNumeric: 10, isTimeBased: false, exerciseMatch: ["Bulgarian Split Squat"] },
-  { id: "squat_hold", skillName: "Deep Squat Hold", category: "Legs" as const, targetMetric: "60 sec", targetNumeric: 60, isTimeBased: true, exerciseMatch: ["Deep Squat Hold", "Deep Squat Mobility"] },
-  { id: "tuck_hold", skillName: "Tuck Hold", category: "Core" as const, targetMetric: "30 sec", targetNumeric: 30, isTimeBased: true, exerciseMatch: ["Tuck Hold"] },
-];
-
-export async function getUserCheckpoints(userId: string) {
+export async function getUserCheckpoints(userId: string, tierFilter?: SkillTier) {
   // Fetch completed session logs for user
   const logs = await db.sessionLog.findMany({
     where: {
@@ -48,10 +38,14 @@ export async function getUserCheckpoints(userId: string) {
     where: { userId },
   });
 
+  const skillsToEvaluate = tierFilter
+    ? SKILL_ROADMAP_161.filter((s) => s.tier === tierFilter)
+    : SKILL_ROADMAP_161;
+
   const checkpointResults: CoreCheckpoint[] = [];
 
-  for (const item of CORE_11_CHECKPOINTS) {
-    const dbRecord = dbCheckpoints.find((c) => c.skillName === item.skillName);
+  for (const item of skillsToEvaluate) {
+    const dbRecord = dbCheckpoints.find((c) => c.skillName === item.name);
 
     // Find best performance in logs matching exercise names
     let bestVal = 0;
@@ -86,10 +80,10 @@ export async function getUserCheckpoints(userId: string) {
     // Auto-sync database record if achieved
     if (achieved && (!dbRecord || !dbRecord.achieved)) {
       await db.progressCheckpoint.upsert({
-        where: { userId_skillName: { userId, skillName: item.skillName } },
+        where: { userId_skillName: { userId, skillName: item.name } },
         create: {
           userId,
-          skillName: item.skillName,
+          skillName: item.name,
           targetMetric: item.targetMetric,
           achieved: true,
           achievedAt: new Date(),
@@ -104,12 +98,15 @@ export async function getUserCheckpoints(userId: string) {
     }
 
     checkpointResults.push({
+      num: item.num,
       id: item.id,
-      skillName: item.skillName,
+      skillName: item.name,
+      tier: item.tier,
       category: item.category,
       targetMetric: item.targetMetric,
       targetNumeric: item.targetNumeric,
       isTimeBased: item.isTimeBased,
+      isGateway: item.isGateway,
       achieved,
       bestValue: bestVal,
       bestValueStr,
@@ -120,9 +117,13 @@ export async function getUserCheckpoints(userId: string) {
 
   const masteredCount = checkpointResults.filter((c) => c.achieved).length;
   const totalCount = checkpointResults.length;
-  const overallPercent = Math.round((masteredCount / totalCount) * 100);
+  const overallPercent = Math.round((masteredCount / (totalCount || 1)) * 100);
 
-  // Identify top lagging exercises (unmastered, sorted by completionPercent ASC so lowest % is #1 priority)
+  // Core 11 Gateways summary
+  const foundation11 = checkpointResults.filter((c) => c.tier === "Foundation" && c.isGateway);
+  const foundation11Mastered = foundation11.filter((c) => c.achieved).length;
+
+  // Identify top lagging exercises (unmastered, sorted by completionPercent ASC)
   const laggingFocusList = checkpointResults
     .filter((c) => !c.achieved)
     .sort((a, b) => a.completionPercent - b.completionPercent);
@@ -131,6 +132,8 @@ export async function getUserCheckpoints(userId: string) {
     masteredCount,
     totalCount,
     overallPercent,
+    foundation11Mastered,
+    foundation11Total: foundation11.length,
     checkpoints: checkpointResults,
     laggingFocusList,
   };

@@ -322,9 +322,13 @@ type CheckpointData = {
   masteredCount: number;
   totalCount: number;
   overallPercent: number;
+  foundation11Mastered?: number;
+  foundation11Total?: number;
   checkpoints: Array<{
+    num?: number;
     id: string;
     skillName: string;
+    tier?: string;
     category: string;
     targetMetric: string;
     achieved: boolean;
@@ -339,20 +343,30 @@ type CheckpointData = {
   }>;
 };
 
+const TIERS = [
+  { id: "Foundation", label: "🟢 Foundation" },
+  { id: "Beginner", label: "🔵 Beginner" },
+  { id: "Intermediate", label: "🟠 Intermediate" },
+  { id: "Advanced", label: "🔴 Advanced" },
+  { id: "Elite", label: "🟣 Elite" },
+];
+
 function InteractiveFoundationChecklist({ showChecklist, setShowChecklist }: {
   showChecklist: boolean;
   setShowChecklist: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   const [data, setData] = React.useState<CheckpointData | null>(null);
+  const [activeTier, setActiveTier] = React.useState<string>("Foundation");
   const [loading, setLoading] = React.useState(true);
 
   const fetchCheckpoints = React.useCallback(() => {
-    fetch("/api/training-workout/checkpoints", { cache: "no-store" })
+    setLoading(true);
+    fetch(`/api/training-workout/checkpoints?tier=${activeTier}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => setData(res))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeTier]);
 
   React.useEffect(() => {
     fetchCheckpoints();
@@ -381,8 +395,10 @@ function InteractiveFoundationChecklist({ showChecklist, setShowChecklist }: {
           <div className="flex items-center gap-2.5">
             <Target className="h-5 w-5 text-primary" />
             <div>
-              <CardTitle className="text-base">Foundation → Beginner Checkpoints</CardTitle>
-              <CardDescription className="text-xs">11 Core Milestones · AI Lagging Focus Engine</CardDescription>
+              <CardTitle className="text-base">Calisthenics Skill Mastery Roadmap (161 Skills)</CardTitle>
+              <CardDescription className="text-xs">
+                5 Mastery Tiers · 11 Gateway Milestones · Adaptive AI Overload Engine
+              </CardDescription>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -407,15 +423,37 @@ function InteractiveFoundationChecklist({ showChecklist, setShowChecklist }: {
 
       {showChecklist && (
         <CardContent className="pt-0 space-y-4">
+          {/* Tier Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-border/40 pb-2">
+            {TIERS.map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTier(tier.id);
+                }}
+                className={cn(
+                  "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                  activeTier === tier.id
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                {tier.label}
+              </button>
+            ))}
+          </div>
+
           {/* Lagging Focus Priority Banner */}
           {data && data.laggingFocusList.length > 0 && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
               <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-300">
                 <Flame className="h-4 w-4 text-amber-500" />
-                ⚡ AI Lagging Focus Area — Priority Upgrades Needed
+                ⚡ AI Lagging Focus Area — {activeTier} Tier Priority
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Your performance is currently lowest in these skills. Focus extra energy here during workouts:
+                Your performance is lowest in these skills. AI Overload Engine prioritizes your effort here:
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {data.laggingFocusList.slice(0, 3).map((item) => (
@@ -427,7 +465,7 @@ function InteractiveFoundationChecklist({ showChecklist, setShowChecklist }: {
             </div>
           )}
 
-          {/* 11 Milestones Grid */}
+          {/* Skills Grid */}
           <div className="grid gap-2.5 sm:grid-cols-2">
             {data?.checkpoints.map((item) => (
               <div
@@ -453,18 +491,20 @@ function InteractiveFoundationChecklist({ showChecklist, setShowChecklist }: {
                       : "border-border/60 bg-muted text-muted-foreground"
                   )}
                 >
-                  {item.achieved ? <Check className="h-4 w-4" /> : null}
+                  {item.achieved ? <Check className="h-4 w-4" /> : item.num ? item.num : null}
                 </div>
 
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center justify-between gap-1">
-                    <p className="text-xs font-semibold leading-none">{item.skillName}</p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="truncate text-xs font-semibold leading-none">{item.skillName}</p>
+                    </div>
                     {item.achieved ? (
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">🟢 MASTERED</span>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">🟢 MASTERED</span>
                     ) : item.status === "lagging" ? (
-                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">⚡ LAGGING</span>
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 shrink-0">⚡ LAGGING</span>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground">{item.completionPercent}%</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{item.completionPercent}%</span>
                     )}
                   </div>
 
