@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   Dumbbell, Clock, CheckCircle2, Info, TrendingUp, ChevronDown,
-  Play, Save, Loader2, RotateCcw,
+  Play, Save, Loader2, RotateCcw, Trash2, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -320,7 +320,10 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
   const allDone = entries.length > 0 && entries.every(e => e.completed);
   const completedSets = entries.filter(e => e.completed).length;
 
-  React.useEffect(() => { if (canEdit && !allDone) setExpanded(true); }, [canEdit, allDone]);
+  React.useEffect(() => {
+    if (allDone) setExpanded(false);
+    else if (canEdit) setExpanded(true);
+  }, [canEdit, allDone]);
 
   const targetIsTime = exercise.repsOrDuration && (exercise.repsOrDuration.toLowerCase().includes("sec") || exercise.repsOrDuration.toLowerCase().includes("min") || exercise.repsOrDuration.toLowerCase().includes("hold"));
   const targetIsReps = exercise.repsOrDuration && !targetIsTime;
@@ -367,7 +370,7 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
                 targetIsReps={!!targetIsReps}
                 targetIsTime={!!targetIsTime}
                 onSave={onSave}
-                onRemove={entries.length > 1 ? () => onRemoveSet(entry.id) : undefined}
+                onRemove={() => onRemoveSet(entry.id)}
               />
             ))}
             <Button
@@ -376,7 +379,7 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
               onClick={(e) => { e.stopPropagation(); onAddSet(); }}
               className="w-full gap-1.5 border-dashed text-xs text-muted-foreground hover:text-foreground"
             >
-              + Add Set
+              <Plus className="h-3.5 w-3.5" /> Add Set
             </Button>
           </div>
         )}
@@ -402,7 +405,7 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
 function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
   entry: LogEntry; targetIsReps: boolean; targetIsTime: boolean;
   onSave: (entryId: string, data: Partial<LogEntry>) => void;
-  onRemove?: () => void;
+  onRemove: () => void;
 }) {
   const [reps, setReps] = React.useState(entry.actualReps?.toString() ?? "");
   const [weight, setWeight] = React.useState(entry.actualWeight?.toString() ?? "");
@@ -420,6 +423,14 @@ function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
     setCompleted(entry.completed);
   }, [entry.id, entry.actualReps, entry.actualWeight, entry.actualTime, entry.completed, entry.notes]);
 
+  // Track if user changed values after the last save
+  const isDirty = completed && (
+    reps !== (entry.actualReps?.toString() ?? "") ||
+    weight !== (entry.actualWeight?.toString() ?? "") ||
+    timeSec !== (entry.actualTime?.toString() ?? "") ||
+    (notes.trim() || "") !== (entry.notes ?? "")
+  );
+
   function handleSave() {
     setSaving(true);
     onSave(entry.id, {
@@ -433,15 +444,24 @@ function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
     setTimeout(() => setSaving(false), 500);
   }
 
+  // Determine button label & style
+  const buttonLabel = !completed ? "Save" : isDirty ? "Update" : "✓";
+  const buttonVariant = !completed ? "default" : isDirty ? "default" : "outline";
+  const buttonIcon = saving
+    ? <Loader2 className="h-3 w-3 animate-spin" />
+    : !completed ? <Save className="h-3 w-3" />
+    : isDirty ? <Save className="h-3 w-3" />
+    : <CheckCircle2 className="h-3 w-3" />;
+
   return (
     <div className={cn(
       "rounded-lg border p-2.5 transition-all",
-      completed ? "border-emerald-500/30 bg-emerald-500/5" : "border-border/40 bg-background"
+      completed && !isDirty ? "border-emerald-500/30 bg-emerald-500/5" : isDirty ? "border-amber-500/30 bg-amber-500/5" : "border-border/40 bg-background"
     )}>
       <div className="flex items-center gap-2">
         <span className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
-          completed ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+          completed && !isDirty ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : isDirty ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground"
         )}>
           {entry.setNumber}
         </span>
@@ -490,24 +510,22 @@ function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
             <Info className="h-3.5 w-3.5" />
           </button>
           <Button
-            size="sm" variant={completed ? "outline" : "default"}
+            size="sm" variant={buttonVariant as "default" | "outline"}
             onClick={(e) => { e.stopPropagation(); handleSave(); }}
             disabled={saving}
-            className="h-8 gap-1 px-2 text-xs"
+            className={cn("h-8 gap-1 px-2 text-xs", isDirty && "bg-amber-600 hover:bg-amber-700 text-white")}
           >
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : completed ? <CheckCircle2 className="h-3 w-3" /> : <Save className="h-3 w-3" />}
-            {completed ? "✓" : "Save"}
+            {buttonIcon}
+            {buttonLabel}
           </Button>
-          {onRemove && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-              title="Remove set"
-            >
-              <RotateCcw className="h-3 w-3" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+            title="Delete set"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
         </div>
       </div>
 

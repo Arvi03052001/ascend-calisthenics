@@ -110,24 +110,24 @@ export async function POST(req: Request) {
     },
   });
 
-  // Create session logs from the WeeklyPlan data
-  const sessionLogData = planExercises.flatMap((ex) => {
-    const sets = parseInt(ex.sets) || 1;
+  // Create session logs from the WeeklyPlan data — start with 1 set per exercise
+  // Users add more sets via the "+ Add Set" button as needed
+  const sessionLogData = planExercises.map((ex) => {
     const targetIsTime = ex.repsOrDuration && (
       ex.repsOrDuration.toLowerCase().includes("sec") ||
       ex.repsOrDuration.toLowerCase().includes("min") ||
       ex.repsOrDuration.toLowerCase().includes("hold")
     );
-    return Array.from({ length: sets }, (_, setIdx) => ({
+    return {
       workoutId: workout.id,
       exerciseName: ex.exerciseName,
       phase: ex.phase,
       equipment: ex.equipment,
-      setNumber: setIdx + 1,
+      setNumber: 1,
       targetReps: targetIsTime ? null : ex.repsOrDuration,
       targetTime: targetIsTime ? ex.repsOrDuration : null,
       completed: false,
-    }));
+    };
   });
 
   await db.sessionLog.createMany({ data: sessionLogData });
