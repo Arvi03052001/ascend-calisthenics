@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   // Verify the workout belongs to the user
   const workout = await db.workout.findUnique({
     where: { id: parsed.data.workoutId },
-    select: { userId: true },
+    select: { userId: true, dayName: true },
   });
   if (!workout || workout.userId !== userId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -42,6 +42,7 @@ export async function POST(req: Request) {
   const created = await db.sessionLog.create({
     data: {
       workoutId: parsed.data.workoutId,
+      dayName: workout.dayName,
       exerciseName: parsed.data.exerciseName,
       phase: parsed.data.phase,
       equipment: parsed.data.equipment ?? null,

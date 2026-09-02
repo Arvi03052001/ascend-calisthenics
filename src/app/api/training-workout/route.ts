@@ -120,6 +120,7 @@ export async function POST(req: Request) {
     );
     return {
       workoutId: workout.id,
+      dayName: dayName,
       exerciseName: ex.exerciseName,
       phase: ex.phase,
       equipment: ex.equipment,

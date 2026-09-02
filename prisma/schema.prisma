@@ -88,6 +88,7 @@ model Workout {
 model SessionLog {
   id           String   @id @default(cuid())
   workoutId    String
+  dayName      String?
   exerciseName String
   phase        String
   equipment    String?
