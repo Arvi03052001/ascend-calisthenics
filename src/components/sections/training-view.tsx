@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Dumbbell, Clock, CheckCircle2, Info, TrendingUp, ChevronDown,
   Play, Save, Loader2, RotateCcw, Trash2, Plus, ChevronLeft, ChevronRight, Calendar, AlertCircle, XCircle, Sparkles,
+  Target, Flame, Zap, Check, Lock, ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { AIProgressionResult } from "@/lib/ai-progression";
@@ -312,33 +313,184 @@ export function TrainingView() {
         )}
       </Card>
 
-      <Card className="border-primary/20">
-        <CardHeader className="cursor-pointer pb-2" onClick={() => setShowChecklist(!showChecklist)}>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-5 w-5 text-primary" />Foundation → Beginner Checklist
-            </CardTitle>
-            <ChevronDown className={cn("h-4 w-4 transition-transform", showChecklist && "rotate-180")} />
-          </div>
-          <CardDescription>Your finish line. Master ALL before advancing.</CardDescription>
-        </CardHeader>
-        {showChecklist && (
-          <CardContent className="pt-0">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {FOUNDATION_CHECKLIST.map((item, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 p-2.5">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-border/40" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{item.skill}</p>
-                    <p className="text-xs text-muted-foreground">Target: {item.target}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        )}
-      </Card>
+      <InteractiveFoundationChecklist showChecklist={showChecklist} setShowChecklist={setShowChecklist} />
     </div>
+  );
+}
+
+type CheckpointData = {
+  masteredCount: number;
+  totalCount: number;
+  overallPercent: number;
+  checkpoints: Array<{
+    id: string;
+    skillName: string;
+    category: string;
+    targetMetric: string;
+    achieved: boolean;
+    bestValueStr: string;
+    completionPercent: number;
+    status: "mastered" | "developing" | "lagging" | "not_started";
+  }>;
+  laggingFocusList: Array<{
+    skillName: string;
+    completionPercent: number;
+    targetMetric: string;
+  }>;
+};
+
+function InteractiveFoundationChecklist({ showChecklist, setShowChecklist }: {
+  showChecklist: boolean;
+  setShowChecklist: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const [data, setData] = React.useState<CheckpointData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  const fetchCheckpoints = React.useCallback(() => {
+    fetch("/api/training-workout/checkpoints", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => setData(res))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  React.useEffect(() => {
+    fetchCheckpoints();
+  }, [fetchCheckpoints]);
+
+  async function handleToggle(skillName: string, currentAchieved: boolean) {
+    try {
+      const res = await fetch("/api/training-workout/checkpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skillName, achieved: !currentAchieved }),
+      });
+      if (res.ok) {
+        toast.success(currentAchieved ? `Unmarked ${skillName}` : `🎉 Mastered ${skillName}!`);
+        fetchCheckpoints();
+      }
+    } catch {
+      toast.error("Could not update milestone.");
+    }
+  }
+
+  return (
+    <Card className="border-primary/30 shadow-sm">
+      <CardHeader className="cursor-pointer pb-3" onClick={() => setShowChecklist(!showChecklist)}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Target className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle className="text-base">Foundation → Beginner Checkpoints</CardTitle>
+              <CardDescription className="text-xs">11 Core Milestones · AI Lagging Focus Engine</CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {data && (
+              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-xs font-semibold text-primary">
+                {data.masteredCount} / {data.totalCount} Mastered ({data.overallPercent}%)
+              </Badge>
+            )}
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showChecklist && "rotate-180")} />
+          </div>
+        </div>
+
+        {data && (
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all duration-500"
+              style={{ width: `${data.overallPercent}%` }}
+            />
+          </div>
+        )}
+      </CardHeader>
+
+      {showChecklist && (
+        <CardContent className="pt-0 space-y-4">
+          {/* Lagging Focus Priority Banner */}
+          {data && data.laggingFocusList.length > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+              <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-300">
+                <Flame className="h-4 w-4 text-amber-500" />
+                ⚡ AI Lagging Focus Area — Priority Upgrades Needed
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Your performance is currently lowest in these skills. Focus extra energy here during workouts:
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {data.laggingFocusList.slice(0, 3).map((item) => (
+                  <Badge key={item.skillName} className="border-amber-500/40 bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                    ⚠️ {item.skillName} ({item.completionPercent}%)
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 11 Milestones Grid */}
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {data?.checkpoints.map((item) => (
+              <div
+                key={item.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggle(item.skillName, item.achieved);
+                }}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all hover:shadow-sm",
+                  item.achieved
+                    ? "border-emerald-500/40 bg-emerald-500/10"
+                    : item.status === "lagging"
+                    ? "border-amber-500/40 bg-amber-500/5"
+                    : "border-border/50 bg-card"
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-all",
+                    item.achieved
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-border/60 bg-muted text-muted-foreground"
+                  )}
+                >
+                  {item.achieved ? <Check className="h-4 w-4" /> : null}
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-xs font-semibold leading-none">{item.skillName}</p>
+                    {item.achieved ? (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">🟢 MASTERED</span>
+                    ) : item.status === "lagging" ? (
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">⚡ LAGGING</span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">{item.completionPercent}%</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>Target: <span className="font-medium text-foreground">{item.targetMetric}</span></span>
+                    <span>Best: <span className="font-medium text-foreground">{item.bestValueStr}</span></span>
+                  </div>
+
+                  {!item.achieved && (
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn(
+                          "h-full transition-all",
+                          item.status === "lagging" ? "bg-amber-500" : "bg-primary"
+                        )}
+                        style={{ width: `${item.completionPercent}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      )}
+    </Card>
   );
 }
 
