@@ -744,9 +744,9 @@ function DayDetail({ dayIndex, weekStartStr, dayDateFormatted, onBack }: {
 }
 
 function CollapsibleSection({ label, color, count, completedCount, totalEntries, defaultOpen = true, children }: { label: string; color: string; count: number; completedCount: number; totalEntries: number; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(defaultOpen);
   const allDone = totalEntries > 0 && completedCount === totalEntries;
-  React.useEffect(() => { if (allDone) setOpen(false); else setOpen(true); }, [allDone]);
+  const [open, setOpen] = React.useState(!allDone || defaultOpen);
+
   return (
     <div>
       <button type="button" onClick={() => setOpen(!open)} className="mb-2 flex w-full items-center gap-2">
@@ -766,7 +766,8 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
   onAddSet: () => void;
   onRemoveSet: (entryId: string) => void;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
+  const allCompleted = entries.length > 0 && entries.every((e) => e.completed);
+  const [expanded, setExpanded] = React.useState(!allCompleted);
   const [aiProgression, setAiProgression] = React.useState<AIProgressionResult | null>(null);
   const allDone = entries.length > 0 && entries.every(e => e.completed);
   const completedSets = entries.filter(e => e.completed).length;
