@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import {
   Dumbbell,
   Scale,
@@ -9,6 +10,7 @@ import {
   Ruler,
   Timer,
   TrendingDown,
+  Activity
 } from "lucide-react";
 
 import {
@@ -23,6 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { Section } from "@/lib/sections";
+import { getWeeklyMuscleFatigue, type MuscleFatigueData } from "@/app/actions/analytics";
 
 type Profile = {
   name?: string | null;
@@ -82,6 +85,14 @@ export function DashboardHome({
   profile: Profile;
   onNavigate?: (s: Section) => void;
 }) {
+  const [fatigueData, setFatigueData] = React.useState<MuscleFatigueData[] | null>(null);
+
+  React.useEffect(() => {
+    getWeeklyMuscleFatigue()
+      .then((data) => setFatigueData(data))
+      .catch(console.error);
+  }, []);
+
   const start = profile.startWeightKg ?? profile.currentWeightKg ?? 0;
   const target = profile.targetWeightKg ?? start;
   const current = profile.currentWeightKg ?? start;
@@ -184,6 +195,55 @@ export function DashboardHome({
               <StatTile icon={Flame} label="Start weight" value={`${start.toFixed(1)} kg`} />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Muscle Fatigue Heatmap */}
+      <Card className="mb-6 border-border/70 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Activity className="h-5 w-5 text-primary" />
+            Muscle Fatigue (7 Days)
+          </CardTitle>
+          <CardDescription>
+            Training volume breakdown based on your logged sets.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!fatigueData ? (
+            <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+              Loading analytics...
+            </div>
+          ) : fatigueData.length === 0 || fatigueData.every(d => d.sets === 0) ? (
+            <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+              No sets logged in the past 7 days.
+            </div>
+          ) : (
+            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+              {fatigueData.filter(d => d.sets > 0).map((d) => (
+                <div key={d.group} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{d.group}</span>
+                    <span className="text-muted-foreground text-xs">{d.sets} sets</span>
+                  </div>
+                  <Progress
+                    value={d.fatiguePercent}
+                    className="h-2"
+                    indicatorClassName={
+                      d.status === "High"
+                        ? "bg-red-500"
+                        : d.status === "Optimal"
+                        ? "bg-amber-500"
+                        : "bg-emerald-500"
+                    }
+                  />
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {d.status} Volume
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
