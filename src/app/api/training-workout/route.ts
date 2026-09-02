@@ -76,7 +76,7 @@ export async function POST(req: Request) {
   const dayNumber = dayIndex + 1;
   const planExercises = await db.weeklyPlan.findMany({
     where: { dayNumber },
-    orderBy: [{ phase: "asc" }, { orderInPhase: "asc" }],
+    orderBy: { id: "asc" },
   });
 
   if (planExercises.length === 0) {
