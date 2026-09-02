@@ -7,10 +7,16 @@ export async function GET(req: Request) {
   const userId = await getAuthUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const dayIndex = parseInt(new URL(req.url).searchParams.get("dayIndex") ?? "0");
+  const url = new URL(req.url);
+  const dayIndex = parseInt(url.searchParams.get("dayIndex") ?? "0");
+  const weekStartParam = url.searchParams.get("weekStart");
 
-  // Find Monday of this week
-  const monday = new Date();
+  // Calculate Monday of requested week or current week
+  let monday = new Date();
+  if (weekStartParam) {
+    const parsed = new Date(weekStartParam);
+    if (!isNaN(parsed.getTime())) monday = parsed;
+  }
   monday.setHours(0, 0, 0, 0);
   const dayOfWeek = monday.getDay();
   const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -68,7 +74,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { dayIndex, exercises } = body;
+  const { dayIndex, weekStart: weekStartBody } = body;
   if (dayIndex === undefined) {
     return NextResponse.json({ error: "Missing dayIndex" }, { status: 400 });
   }
@@ -88,7 +94,11 @@ export async function POST(req: Request) {
   const focus = planExercises[0].focus;
 
   // Calculate scheduled date
-  const monday = new Date();
+  let monday = new Date();
+  if (weekStartBody) {
+    const parsed = new Date(weekStartBody);
+    if (!isNaN(parsed.getTime())) monday = parsed;
+  }
   monday.setHours(0, 0, 0, 0);
   const dayOfWeek = monday.getDay();
   const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;

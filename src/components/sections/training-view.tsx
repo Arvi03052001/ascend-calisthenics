@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   Dumbbell, Clock, CheckCircle2, Info, TrendingUp, ChevronDown,
-  Play, Save, Loader2, RotateCcw, Trash2, Plus,
+  Play, Save, Loader2, RotateCcw, Trash2, Plus, ChevronLeft, ChevronRight, Calendar, AlertCircle, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,12 +29,12 @@ const PHASE_META: Record<string, { label: string; color: string }> = {
 };
 
 const DAY_INFO = [
-  { day: "Monday", focus: "Chest + Triceps + Grip + Core", color: "bg-sky-500/10 border-sky-500/30" },
-  { day: "Tuesday", focus: "Back + Biceps + Legs + Mobility", color: "bg-emerald-500/10 border-emerald-500/30" },
-  { day: "Wednesday", focus: "Shoulders + Grip + Core", color: "bg-amber-500/10 border-amber-500/30" },
-  { day: "Thursday", focus: "Legs + Lower Body + Core", color: "bg-sky-500/10 border-sky-500/30" },
-  { day: "Friday", focus: "Full Push + Grip + Core", color: "bg-emerald-500/10 border-emerald-500/30" },
-  { day: "Saturday", focus: "Full Body Test + Conditioning", color: "bg-violet-500/10 border-violet-500/30" },
+  { day: "Monday", focus: "Chest + Triceps + Grip + Core" },
+  { day: "Tuesday", focus: "Back + Biceps + Legs + Mobility" },
+  { day: "Wednesday", focus: "Shoulders + Grip + Core" },
+  { day: "Thursday", focus: "Legs + Lower Body + Core" },
+  { day: "Friday", focus: "Full Push + Grip + Core" },
+  { day: "Saturday", focus: "Full Body Test + Conditioning" },
 ];
 
 const FOUNDATION_CHECKLIST = [
@@ -67,39 +67,283 @@ type LogEntry = {
 };
 type WorkoutStatus = "none" | "planned" | "in_progress" | "completed";
 
+type DayStatusInfo = {
+  dayIndex: number;
+  dateStr: string;
+  formattedDate: string;
+  isToday: boolean;
+  status: "completed" | "in_progress" | "missed" | "upcoming";
+  workoutId: string | null;
+  loggedSets: number;
+  totalSets: number;
+};
+
 export function TrainingView() {
   const [selectedDay, setSelectedDay] = React.useState<number | null>(null);
   const [showChecklist, setShowChecklist] = React.useState(false);
   const [showRules, setShowRules] = React.useState(false);
+  const [weekOffset, setWeekOffset] = React.useState(0);
+  const [weekStatusData, setWeekStatusData] = React.useState<{
+    weekStartStr: string;
+    formattedWeekRange: string;
+    days: DayStatusInfo[];
+  } | null>(null);
+  const [loadingWeek, setLoadingWeek] = React.useState(true);
 
-  if (selectedDay !== null) {
-    return <DayDetail dayIndex={selectedDay} onBack={() => setSelectedDay(null)} />;
+  // Compute Monday date string based on weekOffset
+  const targetMondayStr = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const dayOfWeek = d.getDay();
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    d.setDate(d.getDate() + diff + weekOffset * 7);
+    return d.toISOString().split("T")[0];
+  }, [weekOffset]);
+
+  const fetchWeekStatus = React.useCallback(() => {
+    setLoadingWeek(true);
+    fetch(`/api/training-workout/week-status?weekStart=${targetMondayStr}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => setWeekStatusData(data))
+      .catch(() => setWeekStatusData(null))
+      .finally(() => setLoadingWeek(false));
+  }, [targetMondayStr]);
+
+  React.useEffect(() => {
+    fetchWeekStatus();
+  }, [fetchWeekStatus]);
+
+  if (selectedDay !== null && weekStatusData) {
+    return (
+      <DayDetail
+        dayIndex={selectedDay}
+        weekStartStr={weekStatusData.weekStartStr}
+        dayDateFormatted={weekStatusData.days[selectedDay]?.formattedDate}
+        onBack={() => {
+          setSelectedDay(null);
+          fetchWeekStatus();
+        }}
+      />
+    );
   }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-          <Dumbbell className="h-6 w-6 text-primary" />Weekly Plan
-        </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">6 days · Fixed exercises · Same every week · Progress by beating your numbers</p>
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+            <Dumbbell className="h-6 w-6 text-primary" />Weekly Plan
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">6 days · Track progress · Mon to Sun week view</p>
+        </div>
+
+        {/* Week Date Picker Navigation */}
+        <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-card p-1.5 shadow-sm">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setWeekOffset(prev => prev - 1)}
+            title="Previous Week"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+
+          <div className="flex items-center gap-1.5 px-2 text-xs font-semibold">
+            <Calendar className="h-3.5 w-3.5 text-primary" />
+            <span>{loadingWeek ? "Loading..." : weekStatusData?.formattedWeekRange}</span>
+          </div>
+
+          {weekOffset !== 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-7 px-2 text-[11px] font-medium"
+              onClick={() => setWeekOffset(0)}
+            >
+              Today
+            </Button>
+          )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setWeekOffset(prev => prev + 1)}
+            title="Next Week"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
-      <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {DAY_INFO.map((day, idx) => (
-          <Card key={day.day} className={cn("cursor-pointer border-l-4 transition-all hover:shadow-md", day.color)} onClick={() => setSelectedDay(idx)}>
-            <CardHeader className="pb-2"><CardTitle className="text-base">{day.day}</CardTitle><CardDescription>{day.focus}</CardDescription></CardHeader>
-            <CardContent className="pt-0"><div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Dumbbell className="h-3.5 w-3.5" />~18 exercises</span><span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />~2 hours</span></div></CardContent>
-          </Card>
-        ))}
+
+      {/* Grid of 6 Days */}
+      <div className="mb-8 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        {DAY_INFO.map((dayInfo, idx) => {
+          const statusInfo = weekStatusData?.days[idx];
+          const status = statusInfo?.status ?? "upcoming";
+          const isToday = statusInfo?.isToday ?? false;
+
+          let cardBorderClass = "border-border/50 hover:border-border";
+          let bgTint = "bg-card";
+
+          if (status === "completed") {
+            cardBorderClass = "border-emerald-500/40 dark:border-emerald-500/30";
+            bgTint = "bg-emerald-500/5 dark:bg-emerald-950/20";
+          } else if (status === "in_progress" || isToday) {
+            cardBorderClass = "border-primary/50 shadow-sm";
+            bgTint = "bg-primary/5";
+          } else if (status === "missed") {
+            cardBorderClass = "border-rose-500/30 dark:border-rose-500/20";
+            bgTint = "bg-rose-500/5 dark:bg-rose-950/10";
+          }
+
+          return (
+            <Card
+              key={dayInfo.day}
+              className={cn(
+                "cursor-pointer border-2 transition-all hover:shadow-md",
+                cardBorderClass,
+                bgTint
+              )}
+              onClick={() => setSelectedDay(idx)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">{dayInfo.day}</CardTitle>
+                    {isToday && (
+                      <Badge className="bg-primary px-1.5 py-0 text-[10px] font-bold text-primary-foreground">
+                        TODAY
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Status Badge */}
+                  {status === "completed" && (
+                    <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/15 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" /> Completed
+                    </Badge>
+                  )}
+                  {status === "in_progress" && (
+                    <Badge className="gap-1 border-primary/30 bg-primary/15 text-[11px] font-semibold text-primary">
+                      <Play className="h-3 w-3 fill-current" /> In Progress
+                    </Badge>
+                  )}
+                  {status === "missed" && (
+                    <Badge className="gap-1 border-rose-500/30 bg-rose-500/15 text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                      <XCircle className="h-3 w-3" /> Missed
+                    </Badge>
+                  )}
+                  {status === "upcoming" && !isToday && (
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                      Upcoming
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{dayInfo.focus}</span>
+                </div>
+
+                {statusInfo?.formattedDate && (
+                  <p className="mt-1 text-[11px] font-medium text-foreground/60">
+                    🗓️ {statusInfo.formattedDate}
+                  </p>
+                )}
+              </CardHeader>
+
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Dumbbell className="h-3.5 w-3.5" />~18 exercises
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />~2 hours
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
-      <Card className="mb-8 border-dashed"><CardContent className="flex items-center gap-3 p-4"><span className="text-2xl">😴</span><div><p className="text-sm font-medium">Sunday — Rest & Recover</p><p className="text-xs text-muted-foreground">Muscle grows when you rest.</p></div></CardContent></Card>
-      <Card className="mb-4"><CardHeader className="cursor-pointer pb-2" onClick={() => setShowRules(!showRules)}><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-primary" />Progression Rules</CardTitle><ChevronDown className={cn("h-4 w-4 transition-transform", showRules && "rotate-180")} /></div></CardHeader>{showRules && <CardContent className="pt-0"><ul className="space-y-2">{PROGRESSION_RULES.map((r,i)=><li key={i} className="flex gap-2 text-sm"><span className="font-bold text-primary">{i+1}.</span><span className="text-muted-foreground">{r}</span></li>)}</ul></CardContent>}</Card>
-      <Card className="border-primary/20"><CardHeader className="cursor-pointer pb-2" onClick={() => setShowChecklist(!showChecklist)}><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="h-5 w-5 text-primary" />Foundation → Beginner Checklist</CardTitle><ChevronDown className={cn("h-4 w-4 transition-transform", showChecklist && "rotate-180")} /></div><CardDescription>Your finish line. Master ALL before advancing.</CardDescription></CardHeader>{showChecklist && <CardContent className="pt-0"><div className="grid gap-2 sm:grid-cols-2">{FOUNDATION_CHECKLIST.map((item,i)=><div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 p-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-border/40" /><div className="flex-1"><p className="text-sm font-medium">{item.skill}</p><p className="text-xs text-muted-foreground">Target: {item.target}</p></div></div>)}</div></CardContent>}</Card>
+
+      <Card className="mb-8 border-dashed">
+        <CardContent className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">😴</span>
+            <div>
+              <p className="text-sm font-medium">Sunday — Rest & Recover</p>
+              <p className="text-xs text-muted-foreground">Muscle grows when you rest.</p>
+            </div>
+          </div>
+          {weekStatusData?.days[5] && (
+            <span className="text-xs font-semibold text-muted-foreground">
+              🗓️ {weekStatusData.formattedWeekRange.split(" – ")[1]}
+            </span>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mb-4">
+        <CardHeader className="cursor-pointer pb-2" onClick={() => setShowRules(!showRules)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-5 w-5 text-primary" />Progression Rules
+            </CardTitle>
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showRules && "rotate-180")} />
+          </div>
+        </CardHeader>
+        {showRules && (
+          <CardContent className="pt-0">
+            <ul className="space-y-2">
+              {PROGRESSION_RULES.map((r, i) => (
+                <li key={i} className="flex gap-2 text-sm">
+                  <span className="font-bold text-primary">{i + 1}.</span>
+                  <span className="text-muted-foreground">{r}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        )}
+      </Card>
+
+      <Card className="border-primary/20">
+        <CardHeader className="cursor-pointer pb-2" onClick={() => setShowChecklist(!showChecklist)}>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CheckCircle2 className="h-5 w-5 text-primary" />Foundation → Beginner Checklist
+            </CardTitle>
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showChecklist && "rotate-180")} />
+          </div>
+          <CardDescription>Your finish line. Master ALL before advancing.</CardDescription>
+        </CardHeader>
+        {showChecklist && (
+          <CardContent className="pt-0">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {FOUNDATION_CHECKLIST.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 p-2.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-border/40" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{item.skill}</p>
+                    <p className="text-xs text-muted-foreground">Target: {item.target}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }
 
-function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void }) {
+function DayDetail({ dayIndex, weekStartStr, dayDateFormatted, onBack }: {
+  dayIndex: number;
+  weekStartStr?: string;
+  dayDateFormatted?: string;
+  onBack: () => void;
+}) {
   const dayInfo = DAY_INFO[dayIndex];
   const [dbExercises, setDbExercises] = React.useState<DBExercise[]>([]);
   const [loadingExercises, setLoadingExercises] = React.useState(true);
@@ -126,7 +370,8 @@ function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void 
     const timeout = setTimeout(() => { if (!cancelled) setLoading(false); }, 5000);
     (async () => {
       try {
-        const res = await fetch(`/api/training-workout?dayIndex=${dayIndex}`, { cache: "no-store" });
+        const query = weekStartStr ? `dayIndex=${dayIndex}&weekStart=${weekStartStr}` : `dayIndex=${dayIndex}`;
+        const res = await fetch(`/api/training-workout?${query}`, { cache: "no-store" });
         if (!cancelled && res.ok) {
           const data = await res.json();
           if (data.workout) { setWorkoutId(data.workout.id); setStatus(data.workout.status); setEntries(data.workout.entries || []); }
@@ -134,12 +379,16 @@ function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void 
       } catch {} finally { if (!cancelled) { clearTimeout(timeout); setLoading(false); } }
     })();
     return () => { cancelled = true; clearTimeout(timeout); };
-  }, [dayIndex]);
+  }, [dayIndex, weekStartStr]);
 
   async function handleStart() {
     setStarting(true);
     try {
-      const res = await fetch("/api/training-workout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dayIndex }) });
+      const res = await fetch("/api/training-workout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayIndex, weekStart: weekStartStr }),
+      });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setWorkoutId(data.workout.id); setEntries(data.workout.entries); setStatus("in_progress");
@@ -226,7 +475,12 @@ function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void 
     <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <button onClick={onBack} className="mb-4 text-sm text-muted-foreground hover:text-foreground">← Back to week</button>
       <div className="mb-6 flex items-start justify-between gap-3">
-        <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{dayInfo.day}</h1><p className="mt-1 text-sm text-muted-foreground">{dayInfo.focus}</p></div>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            {dayInfo.day} {dayDateFormatted && <span className="text-lg font-normal text-muted-foreground">({dayDateFormatted})</span>}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">{dayInfo.focus}</p>
+        </div>
         <div className="flex items-center gap-2">
           {status === "completed" && <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />Completed</Badge>}
           {status === "in_progress" && <Badge className="gap-1 bg-primary/15 text-primary"><Play className="h-3.5 w-3.5" />In progress</Badge>}
