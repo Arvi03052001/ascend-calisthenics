@@ -1,0 +1,45 @@
+==========================================
+[2026-09-02 01:30:14] Starting: bun install
+==========================================
+[BUN] Installing dependencies...
+[0.03ms] ".env"
+bun install v1.3.14 (0d9b296a)
+
+$ prisma generate
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v6.19.2) to ./node_modules/@prisma/client in 115ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+
+Checked 848 installs across 917 packages (no changes) [1166.00ms]
+==========================================
+[2026-09-02 01:30:15] Completed: bun install
+[LOG] Step: bun install | Duration: 1s
+==========================================
+
+==========================================
+[2026-09-02 01:30:15] Starting: bun run db:push
+==========================================
+[BUN] Setting up database...
+$ prisma db push --accept-data-loss
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Error: Prisma schema validation - (get-config wasm)
+Error code: P1012
+error: Error validating datasource `db`: the URL must start with the protocol `postgresql://` or `postgres://`.
+  -->  prisma/schema.prisma:10
+   | 
+ 9 |   provider = "postgresql"
+10 |   url      = env("DATABASE_URL")
+   | 
+
+Validation Error Count: 1
+[Context: getConfig]
+
+Prisma CLI Version : 6.19.2
+error: script "db:push" exited with code 1

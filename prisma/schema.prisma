@@ -1,0 +1,123 @@
+// Ascend — Clean Prisma Schema
+// Only the tables we use. No clutter.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String?
+  passwordHash String
+  image        String?
+
+  sex             String?
+  dateOfBirth     DateTime?
+  age             Int?
+  heightCm        Float?
+  startWeightKg   Float?
+  targetWeightKg  Float?
+  currentWeightKg Float?
+  experienceLevel String?
+  trainingDays    Int?
+  goal            String?
+  onboardedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  weightLogs  WeightLog[]
+  workouts    Workout[]
+  checkpoints ProgressCheckpoint[]
+}
+
+model WeightLog {
+  id        String   @id @default(cuid())
+  userId    String
+  weightKg  Float
+  loggedAt  DateTime
+  note      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt])
+}
+
+model WeeklyPlan {
+  id             Int     @id @default(autoincrement())
+  dayName        String
+  dayNumber      Int
+  focus          String
+  phase          String
+  orderInPhase   Int
+  exerciseName   String
+  equipment      String?
+  sets           String
+  repsOrDuration String?
+  rest           String?
+  coachingNotes  String?
+
+  @@index([dayNumber, orderInPhase])
+}
+
+model Workout {
+  id           String   @id @default(cuid())
+  userId       String
+  dayName      String
+  weekStart    DateTime
+  scheduledFor DateTime
+  title        String
+  status       String   @default("planned")
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionLogs SessionLog[]
+
+  @@index([userId, weekStart])
+}
+
+model SessionLog {
+  id           String   @id @default(cuid())
+  workoutId    String
+  exerciseName String
+  phase        String
+  equipment    String?
+  setNumber    Int
+  targetReps   String?
+  targetTime   String?
+  actualReps   Int?
+  actualWeight Float?
+  actualTime   Int?
+  notes        String?
+  completed    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@index([workoutId])
+}
+
+model ProgressCheckpoint {
+  id           String    @id @default(cuid())
+  userId       String
+  skillName    String
+  targetMetric String
+  achieved     Boolean   @default(false)
+  achievedAt   DateTime?
+  bestValue    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillName])
+}

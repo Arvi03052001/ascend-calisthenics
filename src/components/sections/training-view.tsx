@@ -1,0 +1,309 @@
+"use client";
+
+import * as React from "react";
+import {
+  Dumbbell, Clock, CheckCircle2, Info, TrendingUp, ChevronDown,
+  Play, Save, Loader2, RotateCcw,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  Card, CardContent, CardHeader, CardTitle, CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
+
+const PHASE_ORDER = ["Warm-Up", "Skill Work", "Main Strength", "Accessories", "Finisher", "Cooldown"];
+const PHASE_META: Record<string, { label: string; color: string }> = {
+  "Warm-Up": { label: "Warm-Up", color: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+  "Skill Work": { label: "Skill Practice", color: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+  "Main Strength": { label: "Main Strength", color: "bg-primary/10 text-primary" },
+  "Accessories": { label: "Accessories", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  "Finisher": { label: "Finisher", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
+  "Cooldown": { label: "Cooldown", color: "bg-teal-500/10 text-teal-600 dark:text-teal-400" },
+};
+
+const DAY_INFO = [
+  { day: "Monday", focus: "Chest + Triceps + Grip + Core", color: "bg-sky-500/10 border-sky-500/30" },
+  { day: "Tuesday", focus: "Back + Biceps + Legs + Mobility", color: "bg-emerald-500/10 border-emerald-500/30" },
+  { day: "Wednesday", focus: "Shoulders + Grip + Core", color: "bg-amber-500/10 border-amber-500/30" },
+  { day: "Thursday", focus: "Legs + Lower Body + Core", color: "bg-sky-500/10 border-sky-500/30" },
+  { day: "Friday", focus: "Full Push + Grip + Core", color: "bg-emerald-500/10 border-emerald-500/30" },
+  { day: "Saturday", focus: "Full Body Test + Conditioning", color: "bg-violet-500/10 border-violet-500/30" },
+];
+
+const FOUNDATION_CHECKLIST = [
+  { skill: "Dead Hang", target: "60 sec" }, { skill: "Active Hang", target: "30 sec" },
+  { skill: "Scapular Pull-Up", target: "3 x 10" }, { skill: "Push-Up", target: "3 x 15" },
+  { skill: "Bench Dip", target: "3 x 15" }, { skill: "Hollow Hold", target: "45 sec" },
+  { skill: "Lying Leg Raise", target: "3 x 12" }, { skill: "Bodyweight Squat", target: "3 x 20" },
+  { skill: "Bulgarian Split Squat", target: "3 x 10/leg" }, { skill: "Deep Squat Hold", target: "60 sec" },
+  { skill: "Tuck Hold", target: "30 sec" },
+];
+const PROGRESSION_RULES = [
+  "Every week, try to beat last week's TOTAL numbers (even by 1-2 reps/seconds)",
+  "On machines (assisted chin/dip), reduce the assistance weight slightly once reps feel easy",
+  "On push-ups, once you hit 15 clean reps on a level (wall→incline→knee→standard), move to the next harder variation",
+  "On holds (plank, hollow hold, squat hold), add 5-10 seconds once you hit your current set target for 2 sessions in a row",
+  "If a number doesn't move for 2+ weeks, deload slightly and rebuild — totally normal, not failure",
+];
+
+type DBExercise = {
+  id: number; dayName: string; dayNumber: number; focus: string;
+  phase: string; orderInPhase: number; exerciseName: string;
+  equipment: string | null; sets: string; repsOrDuration: string | null;
+  rest: string | null; coachingNotes: string | null;
+};
+type LogEntry = {
+  id: string; exerciseName: string; phase: string; equipment: string | null;
+  setNumber: number; targetReps: string | null; targetTime: string | null;
+  actualReps: number | null; actualWeight: number | null; actualTime: number | null;
+  notes: string | null; completed: boolean;
+};
+type WorkoutStatus = "none" | "planned" | "in_progress" | "completed";
+
+export function TrainingView() {
+  const [selectedDay, setSelectedDay] = React.useState<number | null>(null);
+  const [showChecklist, setShowChecklist] = React.useState(false);
+  const [showRules, setShowRules] = React.useState(false);
+
+  if (selectedDay !== null) {
+    return <DayDetail dayIndex={selectedDay} onBack={() => setSelectedDay(null)} />;
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <header className="mb-6">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <Dumbbell className="h-6 w-6 text-primary" />Weekly Plan
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">6 days · Fixed exercises · Same every week · Progress by beating your numbers</p>
+      </header>
+      <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {DAY_INFO.map((day, idx) => (
+          <Card key={day.day} className={cn("cursor-pointer border-l-4 transition-all hover:shadow-md", day.color)} onClick={() => setSelectedDay(idx)}>
+            <CardHeader className="pb-2"><CardTitle className="text-base">{day.day}</CardTitle><CardDescription>{day.focus}</CardDescription></CardHeader>
+            <CardContent className="pt-0"><div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Dumbbell className="h-3.5 w-3.5" />~18 exercises</span><span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />~2 hours</span></div></CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card className="mb-8 border-dashed"><CardContent className="flex items-center gap-3 p-4"><span className="text-2xl">😴</span><div><p className="text-sm font-medium">Sunday — Rest & Recover</p><p className="text-xs text-muted-foreground">Muscle grows when you rest.</p></div></CardContent></Card>
+      <Card className="mb-4"><CardHeader className="cursor-pointer pb-2" onClick={() => setShowRules(!showRules)}><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-primary" />Progression Rules</CardTitle><ChevronDown className={cn("h-4 w-4 transition-transform", showRules && "rotate-180")} /></div></CardHeader>{showRules && <CardContent className="pt-0"><ul className="space-y-2">{PROGRESSION_RULES.map((r,i)=><li key={i} className="flex gap-2 text-sm"><span className="font-bold text-primary">{i+1}.</span><span className="text-muted-foreground">{r}</span></li>)}</ul></CardContent>}</Card>
+      <Card className="border-primary/20"><CardHeader className="cursor-pointer pb-2" onClick={() => setShowChecklist(!showChecklist)}><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="h-5 w-5 text-primary" />Foundation → Beginner Checklist</CardTitle><ChevronDown className={cn("h-4 w-4 transition-transform", showChecklist && "rotate-180")} /></div><CardDescription>Your finish line. Master ALL before advancing.</CardDescription></CardHeader>{showChecklist && <CardContent className="pt-0"><div className="grid gap-2 sm:grid-cols-2">{FOUNDATION_CHECKLIST.map((item,i)=><div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 p-2.5"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-border/40" /><div className="flex-1"><p className="text-sm font-medium">{item.skill}</p><p className="text-xs text-muted-foreground">Target: {item.target}</p></div></div>)}</div></CardContent>}</Card>
+    </div>
+  );
+}
+
+function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void }) {
+  const dayInfo = DAY_INFO[dayIndex];
+  const [dbExercises, setDbExercises] = React.useState<DBExercise[]>([]);
+  const [loadingExercises, setLoadingExercises] = React.useState(true);
+  const [status, setStatus] = React.useState<WorkoutStatus>("none");
+  const [workoutId, setWorkoutId] = React.useState<string | null>(null);
+  const [entries, setEntries] = React.useState<LogEntry[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [starting, setStarting] = React.useState(false);
+  const [completing, setCompleting] = React.useState(false);
+  const [editMode, setEditMode] = React.useState(false);
+  const [showReset, setShowReset] = React.useState(false);
+  const [resetting, setResetting] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch(`/api/weekly-plan?day=${dayIndex + 1}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => setDbExercises(data.exercises || []))
+      .catch(() => setDbExercises([]))
+      .finally(() => setLoadingExercises(false));
+  }, [dayIndex]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const timeout = setTimeout(() => { if (!cancelled) setLoading(false); }, 5000);
+    (async () => {
+      try {
+        const res = await fetch(`/api/training-workout?dayIndex=${dayIndex}`, { cache: "no-store" });
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          if (data.workout) { setWorkoutId(data.workout.id); setStatus(data.workout.status); setEntries(data.workout.entries || []); }
+        }
+      } catch {} finally { if (!cancelled) { clearTimeout(timeout); setLoading(false); } }
+    })();
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, [dayIndex]);
+
+  async function handleStart() {
+    setStarting(true);
+    try {
+      const res = await fetch("/api/training-workout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dayIndex }) });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setWorkoutId(data.workout.id); setEntries(data.workout.entries); setStatus("in_progress");
+      toast.success("Workout started — log your sets below!");
+    } catch { toast.error("Could not start workout."); } finally { setStarting(false); }
+  }
+
+  async function handleComplete() {
+    if (!workoutId) return;
+    setCompleting(true);
+    try {
+      const res = await fetch(`/api/training-workout/${workoutId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "completed" }) });
+      if (!res.ok) throw new Error();
+      setStatus("completed"); toast.success("Workout complete! Great work. 💪");
+    } catch { toast.error("Could not mark complete."); } finally { setCompleting(false); }
+  }
+
+  async function handleReset() {
+    if (!workoutId) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/training-workout/${workoutId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset: true }) });
+      if (!res.ok) throw new Error();
+      setStatus("none"); setEntries([]); setShowReset(false); toast.success("Workout reset. Start fresh!");
+    } catch { toast.error("Could not reset."); } finally { setResetting(false); }
+  }
+
+  async function handleSaveEntry(entryId: string, data: Partial<LogEntry>) {
+    try {
+      const res = await fetch(`/api/training-workout/entries/${entryId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error();
+      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...data } : e));
+    } catch { toast.error("Could not save log."); }
+  }
+
+  const canEdit = status === "in_progress" || editMode;
+  const completedCount = entries.filter(e => e.completed).length;
+  const groupedExercises = React.useMemo(() => {
+    const groups: Record<string, DBExercise[]> = {};
+    for (const phase of PHASE_ORDER) { const items = dbExercises.filter(e => e.phase === phase); if (items.length > 0) groups[phase] = items.sort((a,b) => a.orderInPhase - b.orderInPhase); }
+    return groups;
+  }, [dbExercises]);
+
+  return (
+    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+      <button onClick={onBack} className="mb-4 text-sm text-muted-foreground hover:text-foreground">← Back to week</button>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{dayInfo.day}</h1><p className="mt-1 text-sm text-muted-foreground">{dayInfo.focus}</p></div>
+        <div className="flex items-center gap-2">
+          {status === "completed" && <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />Completed</Badge>}
+          {status === "in_progress" && <Badge className="gap-1 bg-primary/15 text-primary"><Play className="h-3.5 w-3.5" />In progress</Badge>}
+          {(status === "in_progress" || status === "completed") && <Button variant="outline" size="sm" onClick={() => setShowReset(true)} disabled={resetting} className="gap-1.5 text-muted-foreground"><RotateCcw className="h-3.5 w-3.5" />Reset</Button>}
+          {status === "completed" && !editMode && <Button variant="outline" size="sm" onClick={() => setEditMode(true)} className="gap-1.5"><Save className="h-3.5 w-3.5" />Edit</Button>}
+        </div>
+      </div>
+      {(loading || loadingExercises) ? (
+        <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
+      ) : (
+        <>
+          {(status === "none" || status === "planned") && (
+            <Card className="mb-6 border-primary/20"><CardContent className="flex flex-col items-center gap-3 p-5 text-center">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Play className="h-6 w-6" /></span>
+              <div><h2 className="text-base font-semibold">Ready to train?</h2><p className="mt-1 text-xs text-muted-foreground">Click start to open logging fields for each exercise below.</p></div>
+              <Button onClick={handleStart} disabled={starting} size="lg" className="gap-2">{starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}Start workout</Button>
+            </CardContent></Card>
+          )}
+          {status === "in_progress" && (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <span className="text-sm text-muted-foreground">{completedCount}/{entries.length} logged</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${entries.length > 0 ? (completedCount / entries.length) * 100 : 0}%` }} /></div>
+              <Button onClick={handleComplete} disabled={completing || completedCount === 0} size="sm" className="gap-1.5">{completing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}Complete</Button>
+            </div>
+          )}
+          <div className="space-y-6">
+            {PHASE_ORDER.map(phase => {
+              const secExercises = groupedExercises[phase]; if (!secExercises || secExercises.length === 0) return null;
+              const meta = PHASE_META[phase] || { label: phase, color: "bg-muted text-muted-foreground" };
+              const secEntries = entries.filter(e => e.phase === phase);
+              const completedInSec = secEntries.filter(e => e.completed).length;
+              const allDone = secEntries.length > 0 && completedInSec === secEntries.length;
+              return (
+                <CollapsibleSection key={phase} label={meta.label} color={meta.color} count={secExercises.length} completedCount={completedInSec} defaultOpen={!allDone}>
+                  <div className="space-y-3">
+                    {secExercises.map((ex, idx) => {
+                      const entry = entries.find(e => e.exerciseName === ex.exerciseName && e.phase === phase);
+                      return <DBExerciseLogCard key={`${ex.id}-${idx}`} exercise={ex} index={idx} entry={entry} canEdit={canEdit} onSave={handleSaveEntry} />;
+                    })}
+                  </div>
+                </CollapsibleSection>
+              );
+            })}
+          </div>
+          {status === "in_progress" && <div className="mt-8 flex justify-end"><Button onClick={handleComplete} disabled={completing || completedCount === 0} size="lg" className="gap-2">{completing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Complete workout</Button></div>}
+          {editMode && <div className="mt-8 flex justify-end gap-2"><Button variant="outline" onClick={() => setEditMode(false)}>Cancel</Button><Button onClick={() => setEditMode(false)} className="gap-1.5"><Save className="h-4 w-4" />Save & close</Button></div>}
+        </>
+      )}
+      <AlertDialog open={showReset} onOpenChange={setShowReset}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Reset this workout?</AlertDialogTitle><AlertDialogDescription>This will clear all your logged data.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={resetting}>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleReset} disabled={resetting} className="gap-1.5 bg-destructive text-white hover:bg-destructive/90">{resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}Yes, reset</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    </div>
+  );
+}
+
+function CollapsibleSection({ label, color, count, completedCount, defaultOpen = true, children }: { label: string; color: string; count: number; completedCount: number; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const allDone = completedCount > 0 && completedCount === count;
+  React.useEffect(() => { if (allDone) setOpen(false); else setOpen(true); }, [allDone]);
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen(!open)} className="mb-2 flex w-full items-center gap-2">
+        <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wide", color)}>{label}</span>
+        <span className="text-xs text-muted-foreground">{completedCount > 0 ? <span className={allDone ? "text-emerald-600 dark:text-emerald-400" : ""}>{completedCount}/{count} done</span> : `${count} exercises`}</span>
+        {allDone && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+        <ChevronDown className={cn("ml-auto h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
+function DBExerciseLogCard({ exercise, index, entry, canEdit, onSave }: { exercise: DBExercise; index: number; entry?: LogEntry; canEdit: boolean; onSave: (entryId: string, data: Partial<LogEntry>) => void }) {
+  const [reps, setReps] = React.useState(entry?.actualReps?.toString() ?? "");
+  const [weight, setWeight] = React.useState(entry?.actualWeight?.toString() ?? "");
+  const [timeSec, setTimeSec] = React.useState(entry?.actualTime?.toString() ?? "");
+  const [notes, setNotes] = React.useState(entry?.notes ?? "");
+  const [completed, setCompleted] = React.useState(entry?.completed ?? false);
+  const [saving, setSaving] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
+
+  React.useEffect(() => { setReps(entry?.actualReps?.toString() ?? ""); setWeight(entry?.actualWeight?.toString() ?? ""); setTimeSec(entry?.actualTime?.toString() ?? ""); setNotes(entry?.notes ?? ""); setCompleted(entry?.completed ?? false); }, [entry?.id, entry?.actualReps, entry?.actualWeight, entry?.actualTime, entry?.completed]);
+  React.useEffect(() => { if (canEdit && !completed) setExpanded(true); }, [canEdit, completed]);
+  const isDone = completed;
+
+  function handleSave() {
+    if (!entry) return; setSaving(true);
+    onSave(entry.id, { actualReps: reps ? parseInt(reps) : null, actualWeight: weight ? parseFloat(weight) : null, actualTime: timeSec ? parseInt(timeSec) : null, notes: notes.trim() || null, completed: true });
+    setCompleted(true); setExpanded(false); setTimeout(() => setSaving(false), 500);
+  }
+
+  const targetIsTime = exercise.repsOrDuration && (exercise.repsOrDuration.toLowerCase().includes("sec") || exercise.repsOrDuration.toLowerCase().includes("min") || exercise.repsOrDuration.toLowerCase().includes("hold"));
+  const targetIsReps = exercise.repsOrDuration && !targetIsTime;
+
+  return (
+    <Card className={cn("overflow-hidden transition-all", isDone && "border-emerald-500/30 bg-emerald-500/5")}>
+      <CardContent className="p-3">
+        <div className="flex items-start gap-3" onClick={() => setExpanded(!expanded)} style={{ cursor: isDone ? "pointer" : "default" }}>
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">{index + 1}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2"><p className="text-sm font-medium leading-tight">{exercise.exerciseName}</p>{isDone && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}{isDone && canEdit && <ChevronDown className={cn("ml-auto h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />}</div>
+            {isDone && !expanded && entry && <p className="mt-0.5 text-xs text-muted-foreground">{entry.actualReps && <span>{entry.actualReps} reps · </span>}{entry.actualTime && <span>{entry.actualTime}s · </span>}{entry.actualWeight && <span>{entry.actualWeight} kg</span>}{!entry.actualReps && !entry.actualTime && <span>Logged</span>}</p>}
+            {(expanded || !isDone) && (<><div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground"><span>Sets: {exercise.sets}</span>{exercise.repsOrDuration && <span>Target: <span className="font-medium text-foreground/70">{exercise.repsOrDuration}</span></span>}{exercise.rest && <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" /> {exercise.rest}</span>}</div>{exercise.equipment && <p className="mt-0.5 text-xs text-muted-foreground">🏋️ {exercise.equipment}</p>}{exercise.coachingNotes && <p className="mt-1 text-xs italic text-muted-foreground">{exercise.coachingNotes}</p>}</>)}
+          </div>
+        </div>
+        {canEdit && expanded && (
+          <div className="mt-3 border-t border-border/30 pt-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {targetIsReps && <div className="space-y-1"><label className="text-[10px] font-semibold uppercase text-muted-foreground">Reps</label><input type="number" placeholder="10" value={reps} onChange={e => setReps(e.target.value)} className="h-10 w-full border border-border/40 bg-background text-center text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>}
+              {targetIsTime && <div className="space-y-1"><label className="text-[10px] font-semibold uppercase text-muted-foreground">Time (sec)</label><input type="number" placeholder="30" value={timeSec} onChange={e => setTimeSec(e.target.value)} className="h-10 w-full border border-border/40 bg-background text-center text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>}
+              <div className="space-y-1"><label className="text-[10px] font-semibold uppercase text-muted-foreground">Weight (kg)</label><input type="number" step="0.5" placeholder="0" value={weight} onChange={e => setWeight(e.target.value)} className="h-10 w-full border border-border/40 bg-background text-center text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            </div>
+            <div className="mt-2"><textarea placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} rows={1} className="w-full resize-none rounded-lg border border-border/40 bg-background p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+            <div className="mt-2 flex items-center justify-between"><span className="text-xs text-muted-foreground">{isDone ? "Logged ✓" : "Not logged"}</span><Button size="sm" onClick={handleSave} disabled={saving || !entry} className="gap-1.5">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}{completed ? "Update" : "Save"}</Button></div>
+          </div>
+        )}
+        {!canEdit && entry && (entry.actualReps || entry.actualTime || entry.actualWeight) && <div className="mt-2 rounded-md bg-muted/50 p-2.5 text-xs"><span className="font-medium text-foreground/70">Logged:</span> {entry.actualReps && <span>{entry.actualReps} reps</span>}{entry.actualTime && <span> · {entry.actualTime}s</span>}{entry.actualWeight && <span> · {entry.actualWeight} kg</span>}{entry.notes && <p className="mt-0.5 italic text-muted-foreground">{entry.notes}</p>}</div>}
+      </CardContent>
+    </Card>
+  );
+}
