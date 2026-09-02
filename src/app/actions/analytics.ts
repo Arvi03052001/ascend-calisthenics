@@ -3,19 +3,15 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getMuscleGroupsForExercise, MUSCLE_GROUPS, MuscleGroup } from "@/lib/muscle-mapping";
+import { getAnatomicalMusclesForExercise, type AnatomicalMuscle } from "@/lib/muscle-mapping";
 
-export type MuscleFatigueData = {
-  group: MuscleGroup;
-  sets: number;
-  fatiguePercent: number;
-  status: "Low" | "Optimal" | "High";
+export type ExerciseHeatmapData = {
+  name: string;
+  muscles: AnatomicalMuscle[];
+  frequency: number;
 };
 
-// Target weekly sets per muscle group for Optimal fatigue.
-const OPTIMAL_SETS_TARGET = 15;
-
-export async function getWeeklyMuscleFatigue(): Promise<MuscleFatigueData[]> {
+export async function getWeeklyMuscleFatigue(): Promise<ExerciseHeatmapData[]> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return [];
@@ -47,33 +43,24 @@ export async function getWeeklyMuscleFatigue(): Promise<MuscleFatigueData[]> {
     },
   });
 
-  const muscleSets = new Map<MuscleGroup, number>();
-  MUSCLE_GROUPS.forEach((m) => muscleSets.set(m, 0));
-
+  // Aggregate frequency by exercise name
+  const exerciseCounts = new Map<string, number>();
   completedLogs.forEach((log) => {
-    const groups = getMuscleGroupsForExercise(log.exerciseName);
-    groups.forEach((g) => {
-      muscleSets.set(g, (muscleSets.get(g) || 0) + 1);
-    });
+    const name = log.exerciseName;
+    exerciseCounts.set(name, (exerciseCounts.get(name) || 0) + 1);
   });
 
-  const result: MuscleFatigueData[] = [];
+  const result: ExerciseHeatmapData[] = [];
   
-  MUSCLE_GROUPS.forEach((group) => {
-    const sets = muscleSets.get(group) || 0;
-    const percent = Math.min(100, Math.round((sets / OPTIMAL_SETS_TARGET) * 100));
-    let status: "Low" | "Optimal" | "High" = "Low";
-    
-    if (percent >= 75) status = "High";
-    else if (percent >= 40) status = "Optimal";
-    else status = "Low";
-
-    result.push({
-      group,
-      sets,
-      fatiguePercent: percent,
-      status,
-    });
+  exerciseCounts.forEach((frequency, name) => {
+    const muscles = getAnatomicalMusclesForExercise(name);
+    if (muscles.length > 0) {
+      result.push({
+        name,
+        muscles,
+        frequency
+      });
+    }
   });
 
   return result;

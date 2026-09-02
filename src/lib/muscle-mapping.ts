@@ -1,73 +1,80 @@
 /**
  * Muscle mapping dictionary for common calisthenics exercises.
- * Maps exercise names or partial matches to primary muscle groups.
+ * Maps exercise names or partial matches to anatomical muscles
+ * supported by react-body-highlighter.
  */
 
-export const MUSCLE_GROUPS = ["Chest", "Back", "Shoulders", "Arms", "Core", "Legs"] as const;
-export type MuscleGroup = typeof MUSCLE_GROUPS[number];
+export type AnatomicalMuscle = 
+  | "trapezius" | "upper-back" | "lower-back" | "chest" 
+  | "biceps" | "triceps" | "forearm" | "back-deltoids" 
+  | "front-deltoids" | "abs" | "obliques" | "adductor" 
+  | "abductors" | "hamstring" | "quadriceps" | "calves" 
+  | "gluteal" | "head" | "neck" | "knees" | "left-soleus" | "right-soleus";
 
-export const EXERCISE_MUSCLE_MAP: Record<string, MuscleGroup[]> = {
-  // Pushing (Chest, Shoulders, Triceps -> Arms)
-  "Standard Push-Up": ["Chest", "Shoulders", "Arms"],
-  "Push-Up": ["Chest", "Shoulders", "Arms"],
-  "Wide Push-Up": ["Chest", "Shoulders"],
-  "Incline Push-Up": ["Chest", "Shoulders"],
-  "Decline Push-Up": ["Chest", "Shoulders"],
-  "Diamond Push-Up": ["Chest", "Arms"],
-  "Pseudo Planche Push-Up": ["Shoulders", "Chest"],
-  "Planche Lean": ["Shoulders", "Arms"],
-  "Planche": ["Shoulders", "Arms"],
-  "Bench Dip": ["Arms", "Chest"],
-  "Parallel Bar Dip": ["Chest", "Arms", "Shoulders"],
-  "Straight Bar Dip": ["Chest", "Arms"],
-  "Wall Push-Up": ["Chest", "Arms"],
-  "Knee Push-Up": ["Chest", "Arms"],
-  "Negative Push-Up": ["Chest", "Arms"],
-  "Pike Push-Up": ["Shoulders", "Arms"],
-  "Handstand": ["Shoulders", "Arms"],
+export const EXERCISE_MUSCLE_MAP: Record<string, AnatomicalMuscle[]> = {
+  // Pushing
+  "Standard Push-Up": ["chest", "triceps", "front-deltoids"],
+  "Push-Up": ["chest", "triceps", "front-deltoids"],
+  "Wide Push-Up": ["chest", "front-deltoids"],
+  "Incline Push-Up": ["chest", "triceps", "front-deltoids"],
+  "Decline Push-Up": ["chest", "triceps", "front-deltoids"],
+  "Diamond Push-Up": ["chest", "triceps"],
+  "Pseudo Planche Push-Up": ["front-deltoids", "chest", "triceps"],
+  "Planche Lean": ["front-deltoids", "triceps", "forearm"],
+  "Planche": ["front-deltoids", "triceps", "forearm", "chest", "abs"],
+  "Bench Dip": ["triceps", "chest", "front-deltoids"],
+  "Parallel Bar Dip": ["chest", "triceps", "front-deltoids"],
+  "Straight Bar Dip": ["chest", "triceps", "front-deltoids"],
+  "Wall Push-Up": ["chest", "triceps", "front-deltoids"],
+  "Knee Push-Up": ["chest", "triceps", "front-deltoids"],
+  "Negative Push-Up": ["chest", "triceps", "front-deltoids"],
+  "Pike Push-Up": ["front-deltoids", "triceps", "upper-back"],
+  "Handstand": ["front-deltoids", "triceps", "trapezius"],
+  "Handstand Push-Up": ["front-deltoids", "triceps", "trapezius"],
 
-  // Pulling (Back, Biceps -> Arms)
-  "Passive Dead Hang": ["Back"],
-  "Active Hang": ["Back"],
-  "Scapular Pull-Up": ["Back"],
-  "Towel Hang": ["Back", "Arms"],
-  "Fingertip Hang Progression": ["Back", "Arms"],
-  "Pull-Up Negative": ["Back", "Arms"],
-  "Australian Pull-Up": ["Back", "Arms"],
-  "Chin-Up": ["Back", "Arms"],
-  "Pull-Up": ["Back", "Arms"],
-  "Muscle-Up": ["Back", "Chest", "Arms"],
-  "Front Lever": ["Back", "Core"],
-  "Back Lever": ["Back", "Core", "Shoulders"],
+  // Pulling
+  "Passive Dead Hang": ["forearm", "upper-back", "lower-back"],
+  "Active Hang": ["upper-back", "trapezius", "forearm"],
+  "Scapular Pull-Up": ["trapezius", "upper-back"],
+  "Towel Hang": ["forearm", "biceps", "upper-back"],
+  "Fingertip Hang Progression": ["forearm", "upper-back"],
+  "Pull-Up Negative": ["upper-back", "biceps", "back-deltoids"],
+  "Australian Pull-Up": ["upper-back", "biceps", "back-deltoids"],
+  "Chin-Up": ["biceps", "upper-back", "back-deltoids"],
+  "Pull-Up": ["upper-back", "biceps", "back-deltoids"],
+  "Muscle-Up": ["upper-back", "biceps", "chest", "triceps"],
+  "Front Lever": ["upper-back", "lower-back", "abs", "obliques", "triceps"],
+  "Back Lever": ["lower-back", "upper-back", "chest", "front-deltoids", "biceps"],
 
   // Core
-  "Plank": ["Core"],
-  "Side Plank": ["Core"],
-  "Hollow Body Hold": ["Core"],
-  "Hollow Hold": ["Core"],
-  "Arch Body Hold": ["Core"],
-  "L-Sit": ["Core", "Arms"],
-  "Lying Leg Raise": ["Core"],
-  "Dead Bug": ["Core"],
-  "Reverse Crunch": ["Core"],
-  "Tuck Hold": ["Core", "Arms"],
-  "Human Flag": ["Core", "Shoulders"],
+  "Plank": ["abs", "obliques", "lower-back"],
+  "Side Plank": ["obliques", "abs"],
+  "Hollow Body Hold": ["abs", "obliques"],
+  "Hollow Hold": ["abs", "obliques"],
+  "Arch Body Hold": ["lower-back", "gluteal"],
+  "L-Sit": ["abs", "quadriceps", "triceps"],
+  "Lying Leg Raise": ["abs"],
+  "Dead Bug": ["abs", "obliques"],
+  "Reverse Crunch": ["abs"],
+  "Tuck Hold": ["abs", "triceps", "front-deltoids"],
+  "Human Flag": ["obliques", "abs", "lower-back", "front-deltoids", "upper-back"],
 
   // Legs
-  "Bodyweight Squat": ["Legs"],
-  "Deep Squat Hold": ["Legs"],
-  "Walking Lunge": ["Legs"],
-  "Reverse Lunge": ["Legs"],
-  "Bulgarian Split Squat": ["Legs"],
-  "Pistol Squat": ["Legs"],
-  "Shrimp Squat": ["Legs"],
+  "Bodyweight Squat": ["quadriceps", "gluteal", "hamstring"],
+  "Deep Squat Hold": ["quadriceps", "gluteal"],
+  "Walking Lunge": ["quadriceps", "gluteal", "hamstring"],
+  "Reverse Lunge": ["quadriceps", "gluteal", "hamstring"],
+  "Bulgarian Split Squat": ["quadriceps", "gluteal", "hamstring"],
+  "Pistol Squat": ["quadriceps", "gluteal", "hamstring", "calves"],
+  "Shrimp Squat": ["quadriceps", "gluteal", "hamstring"],
+  "Calf Raise": ["calves"],
 };
 
 /**
- * Given an exercise name, attempts to find the associated muscle groups.
+ * Given an exercise name, attempts to find the associated anatomical muscles.
  * Does a direct match first, then partial matching.
  */
-export function getMuscleGroupsForExercise(exerciseName: string): MuscleGroup[] {
+export function getAnatomicalMusclesForExercise(exerciseName: string): AnatomicalMuscle[] {
   const normalized = exerciseName.trim().toLowerCase();
   
   // 1. Direct match (case insensitive)
@@ -76,7 +83,7 @@ export function getMuscleGroupsForExercise(exerciseName: string): MuscleGroup[] 
   );
   if (directMatch) return EXERCISE_MUSCLE_MAP[directMatch];
 
-  // 2. Partial match (e.g. "Weighted Pull-Up" -> matches "Pull-Up")
+  // 2. Partial match
   for (const [key, groups] of Object.entries(EXERCISE_MUSCLE_MAP)) {
     if (normalized.includes(key.toLowerCase())) {
       return groups;
@@ -84,10 +91,11 @@ export function getMuscleGroupsForExercise(exerciseName: string): MuscleGroup[] 
   }
 
   // 3. Keyword fallback
-  if (normalized.includes("push") || normalized.includes("dip")) return ["Chest", "Shoulders", "Arms"];
-  if (normalized.includes("pull") || normalized.includes("chin") || normalized.includes("row")) return ["Back", "Arms"];
-  if (normalized.includes("squat") || normalized.includes("lunge")) return ["Legs"];
-  if (normalized.includes("plank") || normalized.includes("hold") || normalized.includes("raise")) return ["Core"];
+  if (normalized.includes("push") || normalized.includes("dip")) return ["chest", "triceps", "front-deltoids"];
+  if (normalized.includes("pull") || normalized.includes("chin") || normalized.includes("row")) return ["upper-back", "biceps", "back-deltoids"];
+  if (normalized.includes("squat") || normalized.includes("lunge")) return ["quadriceps", "gluteal", "hamstring"];
+  if (normalized.includes("plank") || normalized.includes("hold") || normalized.includes("raise")) return ["abs", "obliques"];
+  if (normalized.includes("calf") || normalized.includes("calves")) return ["calves"];
 
   // Default fallback
   return [];

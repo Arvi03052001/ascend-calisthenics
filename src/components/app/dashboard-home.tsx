@@ -25,7 +25,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { Section } from "@/lib/sections";
-import { getWeeklyMuscleFatigue, type MuscleFatigueData } from "@/app/actions/analytics";
+import { getWeeklyMuscleFatigue, type ExerciseHeatmapData } from "@/app/actions/analytics";
+import Model from "react-body-highlighter";
 
 type Profile = {
   name?: string | null;
@@ -78,6 +79,12 @@ function todayLabel() {
   });
 }
 
+const HEATMAP_COLORS = [
+  "#4ade80", "#67e372", "#84e863", "#a1ec54", "#bdf145",
+  "#dcf536", "#facc15", "#fbbf24", "#fba331", "#fb873e",
+  "#fa6a4a", "#f94e57", "#ef4444", "#dc2626", "#b91c1c",
+];
+
 export function DashboardHome({
   profile,
   onNavigate,
@@ -85,7 +92,7 @@ export function DashboardHome({
   profile: Profile;
   onNavigate?: (s: Section) => void;
 }) {
-  const [fatigueData, setFatigueData] = React.useState<MuscleFatigueData[] | null>(null);
+  const [fatigueData, setFatigueData] = React.useState<ExerciseHeatmapData[] | null>(null);
 
   React.useEffect(() => {
     getWeeklyMuscleFatigue()
@@ -199,8 +206,8 @@ export function DashboardHome({
       </Card>
 
       {/* Muscle Fatigue Heatmap */}
-      <Card className="mb-6 border-border/70 shadow-sm">
-        <CardHeader className="pb-3">
+      <Card className="mb-6 border-border/70 shadow-sm overflow-hidden">
+        <CardHeader className="pb-2 bg-muted/20">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Activity className="h-5 w-5 text-primary" />
             Muscle Fatigue (7 Days)
@@ -209,39 +216,40 @@ export function DashboardHome({
             Training volume breakdown based on your logged sets.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {!fatigueData ? (
-            <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-              Loading analytics...
+            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+              Loading anatomical model...
             </div>
-          ) : fatigueData.length === 0 || fatigueData.every(d => d.sets === 0) ? (
-            <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+          ) : fatigueData.length === 0 ? (
+            <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
               No sets logged in the past 7 days.
             </div>
           ) : (
-            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-              {fatigueData.filter(d => d.sets > 0).map((d) => (
-                <div key={d.group} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{d.group}</span>
-                    <span className="text-muted-foreground text-xs">{d.sets} sets</span>
-                  </div>
-                  <Progress
-                    value={d.fatiguePercent}
-                    className="h-2"
-                    indicatorClassName={
-                      d.status === "High"
-                        ? "bg-red-500"
-                        : d.status === "Optimal"
-                        ? "bg-amber-500"
-                        : "bg-emerald-500"
-                    }
-                  />
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {d.status} Volume
-                  </p>
-                </div>
-              ))}
+            <div className="flex flex-col sm:flex-row w-full items-center justify-around py-8 bg-background">
+              <div className="flex flex-col items-center gap-4">
+                <Model
+                  type="anterior"
+                  data={fatigueData}
+                  highlightedColors={HEATMAP_COLORS}
+                  bodyColor="#475569"
+                  style={{ width: "12rem", height: "auto" }}
+                  svgStyle={{ width: "100%", height: "100%" }}
+                />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Anterior</span>
+              </div>
+              <div className="h-px w-full sm:h-48 sm:w-px bg-border/50 my-6 sm:my-0" />
+              <div className="flex flex-col items-center gap-4">
+                <Model
+                  type="posterior"
+                  data={fatigueData}
+                  highlightedColors={HEATMAP_COLORS}
+                  bodyColor="#475569"
+                  style={{ width: "12rem", height: "auto" }}
+                  svgStyle={{ width: "100%", height: "100%" }}
+                />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Posterior</span>
+              </div>
             </div>
           )}
         </CardContent>
