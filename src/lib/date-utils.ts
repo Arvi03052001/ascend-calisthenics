@@ -49,6 +49,24 @@ export function formatIndianDate(d: Date): string {
   return `${day}/${month}/${year}`;
 }
 
+// Formats seconds (e.g. 150) into natural human time e.g. "2m 30s", "45s", "3m"
+export function formatHumanTime(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || isNaN(seconds) || seconds <= 0) {
+    return "0s";
+  }
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hrs > 0) {
+    return mins > 0 ? `${hrs}h ${mins}m ${secs}s` : `${hrs}h ${secs}s`;
+  }
+  if (mins > 0) {
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  return `${secs}s`;
+}
+
 // Converts seconds (e.g. 180 or 45) to "HH:MM:SS" (e.g. "00:03:00" or "00:00:45")
 export function secondsToHHMMSS(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || isNaN(seconds) || seconds <= 0) {
@@ -60,12 +78,12 @@ export function secondsToHHMMSS(seconds: number | null | undefined): string {
   return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-// Converts "HH:MM:SS", "MM:SS", or total seconds string into total seconds integer
+// Converts "HH:MM:SS", "MM:SS", "2m 30s", or total seconds string into total seconds integer
 export function hhmmssToSeconds(input: string | number | null | undefined): number | null {
   if (input === null || input === undefined) return null;
   if (typeof input === "number") return input;
 
-  const str = String(input).trim();
+  const str = String(input).trim().toLowerCase();
   if (!str) return null;
 
   // If input is purely numeric (e.g. "180" or "45")
@@ -73,15 +91,26 @@ export function hhmmssToSeconds(input: string | number | null | undefined): numb
     return parseInt(str, 10);
   }
 
+  // Parse "2m 30s", "45s", "3m"
+  const minMatch = str.match(/(\d+)\s*m/);
+  const secMatch = str.match(/(\d+)\s*s/);
+  const hrMatch = str.match(/(\d+)\s*h/);
+
+  if (minMatch || secMatch || hrMatch) {
+    let total = 0;
+    if (hrMatch) total += parseInt(hrMatch[1], 10) * 3600;
+    if (minMatch) total += parseInt(minMatch[1], 10) * 60;
+    if (secMatch) total += parseInt(secMatch[1], 10);
+    return total;
+  }
+
   // If input contains ":" e.g. "00:03:00", "03:00", "1:30:00"
   const parts = str.split(":").map((p) => parseInt(p.trim(), 10));
   if (parts.some(isNaN)) return null;
 
   if (parts.length === 3) {
-    // HH:MM:SS
     return parts[0] * 3600 + parts[1] * 60 + parts[2];
   } else if (parts.length === 2) {
-    // MM:SS
     return parts[0] * 60 + parts[1];
   } else if (parts.length === 1) {
     return parts[0];

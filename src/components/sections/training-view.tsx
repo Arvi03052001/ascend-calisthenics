@@ -19,7 +19,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { secondsToHHMMSS, hhmmssToSeconds } from "@/lib/date-utils";
+import { secondsToHHMMSS, hhmmssToSeconds, formatHumanTime } from "@/lib/date-utils";
 
 const PHASE_ORDER = ["Warm-Up", "Skill Work", "Main Strength", "Accessories", "Finisher", "Cooldown"];
 const PHASE_META: Record<string, { label: string; color: string }> = {
@@ -811,7 +811,7 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
             {!expanded && allDone && entries.length > 0 && (
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {entries.map((e, i) => (
-                  <span key={e.id}>{i > 0 && " · "}{e.actualReps && `${e.actualReps}r`}{e.actualTime && secondsToHHMMSS(e.actualTime)}{e.actualWeight ? `@${e.actualWeight}kg` : ""}</span>
+                  <span key={e.id}>{i > 0 && " · "}{e.actualReps && `${e.actualReps}r`}{e.actualTime && formatHumanTime(e.actualTime)}{e.actualWeight ? `@${e.actualWeight}kg` : ""}</span>
                 ))}
               </p>
             )}
@@ -899,7 +899,7 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
 }) {
   const [reps, setReps] = React.useState(entry.actualReps?.toString() ?? "");
   const [weight, setWeight] = React.useState(entry.actualWeight?.toString() ?? "");
-  const [timeStr, setTimeStr] = React.useState(entry.actualTime ? secondsToHHMMSS(entry.actualTime) : "");
+  const [timeSec, setTimeSec] = React.useState(entry.actualTime?.toString() ?? "");
   const [notes, setNotes] = React.useState(entry.notes ?? "");
   const [completed, setCompleted] = React.useState(entry.completed);
   const [saving, setSaving] = React.useState(false);
@@ -908,12 +908,13 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
   React.useEffect(() => {
     setReps(entry.actualReps?.toString() ?? "");
     setWeight(entry.actualWeight?.toString() ?? "");
-    setTimeStr(entry.actualTime ? secondsToHHMMSS(entry.actualTime) : "");
+    setTimeSec(entry.actualTime?.toString() ?? "");
     setNotes(entry.notes ?? "");
     setCompleted(entry.completed);
   }, [entry.id, entry.actualReps, entry.actualWeight, entry.actualTime, entry.completed, entry.notes]);
 
-  const parsedTimeSec = hhmmssToSeconds(timeStr);
+  const parsedTimeSec = timeSec ? parseInt(timeSec) : null;
+  const liveHumanTime = parsedTimeSec ? formatHumanTime(parsedTimeSec) : null;
 
   // Track if user changed values after the last save
   const isDirty = completed && (
@@ -925,7 +926,7 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
 
   function handleSave() {
     setSaving(true);
-    const parsedSec = hhmmssToSeconds(timeStr);
+    const parsedSec = timeSec ? parseInt(timeSec) : null;
     onSave(entry.id, {
       actualReps: targetIsReps ? (reps ? parseInt(reps) : (aiTargetReps ?? null)) : null,
       actualWeight: weight ? parseFloat(weight) : null,
@@ -975,12 +976,15 @@ function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime,
           )}
           {targetIsTime && (
             <div className="flex-1 space-y-0.5">
-              <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (HH:MM:SS)</label>
+              <div className="flex items-center justify-between px-0.5">
+                <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (Sec)</label>
+                {liveHumanTime && <span className="text-[10px] font-bold text-primary">{liveHumanTime}</span>}
+              </div>
               <input
-                type="text"
-                placeholder={aiTargetTime ? `${secondsToHHMMSS(aiTargetTime)} (AI)` : "00:00:00"}
-                value={timeStr}
-                onChange={e => setTimeStr(e.target.value)}
+                type="number"
+                placeholder={aiTargetTime ? `${aiTargetTime}s (${formatHumanTime(aiTargetTime)})` : "—"}
+                value={timeSec}
+                onChange={e => setTimeSec(e.target.value)}
                 onClick={e => e.stopPropagation()}
                 className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />

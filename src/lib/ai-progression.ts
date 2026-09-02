@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { formatIndianDate, secondsToHHMMSS } from "@/lib/date-utils";
+import { formatIndianDate, formatHumanTime } from "@/lib/date-utils";
 import { SKILL_ROADMAP_161 } from "@/lib/skills-data";
 
 export type AIProgressionResult = {
@@ -126,8 +126,8 @@ export async function getAIProgressionForExercise(
       aiTargetTime = roadmapNumeric;
     }
 
-    const formattedTarget = secondsToHHMMSS(aiTargetTime);
-    const formattedLast = secondsToHHMMSS(lastTime);
+    const formattedTarget = formatHumanTime(aiTargetTime);
+    const formattedLast = formatHumanTime(lastTime);
 
     displayText = formattedTarget;
     overloadText = `+${step}s growth step (Last: ${formattedLast})`;
