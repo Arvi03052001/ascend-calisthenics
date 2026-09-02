@@ -93,6 +93,7 @@ export function DashboardHome({
   onNavigate?: (s: Section) => void;
 }) {
   const [fatigueData, setFatigueData] = React.useState<ExerciseHeatmapData[] | null>(null);
+  const [selectedMuscle, setSelectedMuscle] = React.useState<{ muscle: string, frequency: number, exercises: string[] } | null>(null);
 
   React.useEffect(() => {
     getWeeklyMuscleFatigue()
@@ -216,7 +217,7 @@ export function DashboardHome({
             Training volume breakdown based on your logged sets.
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 pb-4">
           {!fatigueData ? (
             <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
               Loading anatomical model...
@@ -226,29 +227,79 @@ export function DashboardHome({
               No sets logged in the past 7 days.
             </div>
           ) : (
-            <div className="flex flex-col sm:flex-row w-full items-center justify-around py-8 bg-background">
-              <div className="flex flex-col items-center gap-4">
-                <Model
-                  type="anterior"
-                  data={fatigueData}
-                  highlightedColors={HEATMAP_COLORS}
-                  bodyColor="#475569"
-                  style={{ width: "12rem", height: "auto" }}
-                  svgStyle={{ width: "100%", height: "100%" }}
-                />
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Anterior</span>
+            <div className="flex flex-col items-center">
+              <div className="flex flex-col sm:flex-row w-full items-center justify-around py-6 bg-background">
+                <div className="flex flex-col items-center gap-4">
+                  <Model
+                    type="anterior"
+                    data={fatigueData}
+                    highlightedColors={HEATMAP_COLORS}
+                    bodyColor="#475569"
+                    style={{ width: "12rem", height: "auto", cursor: "pointer" }}
+                    svgStyle={{ width: "100%", height: "100%" }}
+                    onClick={(exercise) => {
+                      if (exercise?.muscle) {
+                        setSelectedMuscle({
+                          muscle: exercise.muscle,
+                          frequency: exercise.data.frequency,
+                          exercises: exercise.data.exercises
+                        });
+                      }
+                    }}
+                  />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Anterior</span>
+                </div>
+                <div className="h-px w-full sm:h-48 sm:w-px bg-border/50 my-6 sm:my-0" />
+                <div className="flex flex-col items-center gap-4">
+                  <Model
+                    type="posterior"
+                    data={fatigueData}
+                    highlightedColors={HEATMAP_COLORS}
+                    bodyColor="#475569"
+                    style={{ width: "12rem", height: "auto", cursor: "pointer" }}
+                    svgStyle={{ width: "100%", height: "100%" }}
+                    onClick={(exercise) => {
+                      if (exercise?.muscle) {
+                        setSelectedMuscle({
+                          muscle: exercise.muscle,
+                          frequency: exercise.data.frequency,
+                          exercises: exercise.data.exercises
+                        });
+                      }
+                    }}
+                  />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Posterior</span>
+                </div>
               </div>
-              <div className="h-px w-full sm:h-48 sm:w-px bg-border/50 my-6 sm:my-0" />
-              <div className="flex flex-col items-center gap-4">
-                <Model
-                  type="posterior"
-                  data={fatigueData}
-                  highlightedColors={HEATMAP_COLORS}
-                  bodyColor="#475569"
-                  style={{ width: "12rem", height: "auto" }}
-                  svgStyle={{ width: "100%", height: "100%" }}
-                />
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Posterior</span>
+
+              {/* Legend & Details */}
+              <div className="w-full max-w-sm px-6 pt-4 flex flex-col items-center gap-4 border-t border-border/40 bg-background/50">
+                {selectedMuscle ? (
+                  <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200">
+                    <span className="text-sm font-semibold capitalize text-foreground">{selectedMuscle.muscle.replace("-", " ")}</span>
+                    <span className="text-xs text-muted-foreground mt-0.5">
+                      {selectedMuscle.frequency} sets this week
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wider text-primary mt-2">
+                      {selectedMuscle.exercises.join(", ")}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground italic h-[68px] flex items-center justify-center">
+                    Tap a colored muscle to see details
+                  </div>
+                )}
+                
+                <div className="w-full flex flex-col items-center gap-1.5 pb-2">
+                  <div className="flex w-full justify-between text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    <span>Low Volume</span>
+                    <span>High Volume</span>
+                  </div>
+                  <div 
+                    className="h-1.5 w-full rounded-full" 
+                    style={{ background: `linear-gradient(to right, ${HEATMAP_COLORS[0]}, ${HEATMAP_COLORS[Math.floor(HEATMAP_COLORS.length/2)]}, ${HEATMAP_COLORS[HEATMAP_COLORS.length-1]})` }} 
+                  />
+                </div>
               </div>
             </div>
           )}
