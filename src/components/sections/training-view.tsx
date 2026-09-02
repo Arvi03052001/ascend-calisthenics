@@ -175,6 +175,45 @@ function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void 
     } catch { toast.error("Could not save log."); }
   }
 
+  async function handleAddSet(exercise: DBExercise) {
+    if (!workoutId) return;
+    const existingEntries = entries.filter(e => e.exerciseName === exercise.exerciseName && e.phase === exercise.phase);
+    const nextSetNumber = existingEntries.length > 0 ? Math.max(...existingEntries.map(e => e.setNumber)) + 1 : 1;
+    const targetIsTime = exercise.repsOrDuration && (
+      exercise.repsOrDuration.toLowerCase().includes("sec") ||
+      exercise.repsOrDuration.toLowerCase().includes("min") ||
+      exercise.repsOrDuration.toLowerCase().includes("hold")
+    );
+    try {
+      const res = await fetch("/api/training-workout/entries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workoutId,
+          exerciseName: exercise.exerciseName,
+          phase: exercise.phase,
+          equipment: exercise.equipment,
+          setNumber: nextSetNumber,
+          targetReps: targetIsTime ? null : exercise.repsOrDuration,
+          targetTime: targetIsTime ? exercise.repsOrDuration : null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setEntries(prev => [...prev, data.entry]);
+      toast.success(`Set ${nextSetNumber} added`);
+    } catch { toast.error("Could not add set."); }
+  }
+
+  async function handleRemoveSet(entryId: string) {
+    try {
+      const res = await fetch(`/api/training-workout/entries/${entryId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setEntries(prev => prev.filter(e => e.id !== entryId));
+      toast.success("Set removed");
+    } catch { toast.error("Could not remove set."); }
+  }
+
   const canEdit = status === "in_progress" || editMode;
   const completedCount = entries.filter(e => e.completed).length;
   const groupedExercises = React.useMemo(() => {
@@ -221,11 +260,24 @@ function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void 
               const completedInSec = secEntries.filter(e => e.completed).length;
               const allDone = secEntries.length > 0 && completedInSec === secEntries.length;
               return (
-                <CollapsibleSection key={phase} label={meta.label} color={meta.color} count={secExercises.length} completedCount={completedInSec} defaultOpen={!allDone}>
+                <CollapsibleSection key={phase} label={meta.label} color={meta.color} count={secExercises.length} completedCount={completedInSec} totalEntries={secEntries.length} defaultOpen={!allDone}>
                   <div className="space-y-3">
                     {secExercises.map((ex, idx) => {
-                      const entry = entries.find(e => e.exerciseName === ex.exerciseName && e.phase === phase);
-                      return <DBExerciseLogCard key={`${ex.id}-${idx}`} exercise={ex} index={idx} entry={entry} canEdit={canEdit} onSave={handleSaveEntry} />;
+                      const exerciseEntries = entries
+                        .filter(e => e.exerciseName === ex.exerciseName && e.phase === phase)
+                        .sort((a, b) => a.setNumber - b.setNumber);
+                      return (
+                        <DBExerciseLogCard
+                          key={`${ex.id}-${idx}`}
+                          exercise={ex}
+                          index={idx}
+                          entries={exerciseEntries}
+                          canEdit={canEdit}
+                          onSave={handleSaveEntry}
+                          onAddSet={() => handleAddSet(ex)}
+                          onRemoveSet={handleRemoveSet}
+                        />
+                      );
                     })}
                   </div>
                 </CollapsibleSection>
@@ -241,15 +293,15 @@ function DayDetail({ dayIndex, onBack }: { dayIndex: number; onBack: () => void 
   );
 }
 
-function CollapsibleSection({ label, color, count, completedCount, defaultOpen = true, children }: { label: string; color: string; count: number; completedCount: number; defaultOpen?: boolean; children: React.ReactNode }) {
+function CollapsibleSection({ label, color, count, completedCount, totalEntries, defaultOpen = true, children }: { label: string; color: string; count: number; completedCount: number; totalEntries: number; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = React.useState(defaultOpen);
-  const allDone = completedCount > 0 && completedCount === count;
+  const allDone = totalEntries > 0 && completedCount === totalEntries;
   React.useEffect(() => { if (allDone) setOpen(false); else setOpen(true); }, [allDone]);
   return (
     <div>
       <button type="button" onClick={() => setOpen(!open)} className="mb-2 flex w-full items-center gap-2">
         <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wide", color)}>{label}</span>
-        <span className="text-xs text-muted-foreground">{completedCount > 0 ? <span className={allDone ? "text-emerald-600 dark:text-emerald-400" : ""}>{completedCount}/{count} done</span> : `${count} exercises`}</span>
+        <span className="text-xs text-muted-foreground">{completedCount > 0 ? <span className={allDone ? "text-emerald-600 dark:text-emerald-400" : ""}>{completedCount}/{totalEntries} done</span> : `${count} exercises`}</span>
         {allDone && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
         <ChevronDown className={cn("ml-auto h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
@@ -258,52 +310,218 @@ function CollapsibleSection({ label, color, count, completedCount, defaultOpen =
   );
 }
 
-function DBExerciseLogCard({ exercise, index, entry, canEdit, onSave }: { exercise: DBExercise; index: number; entry?: LogEntry; canEdit: boolean; onSave: (entryId: string, data: Partial<LogEntry>) => void }) {
-  const [reps, setReps] = React.useState(entry?.actualReps?.toString() ?? "");
-  const [weight, setWeight] = React.useState(entry?.actualWeight?.toString() ?? "");
-  const [timeSec, setTimeSec] = React.useState(entry?.actualTime?.toString() ?? "");
-  const [notes, setNotes] = React.useState(entry?.notes ?? "");
-  const [completed, setCompleted] = React.useState(entry?.completed ?? false);
-  const [saving, setSaving] = React.useState(false);
+function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet, onRemoveSet }: {
+  exercise: DBExercise; index: number; entries: LogEntry[]; canEdit: boolean;
+  onSave: (entryId: string, data: Partial<LogEntry>) => void;
+  onAddSet: () => void;
+  onRemoveSet: (entryId: string) => void;
+}) {
   const [expanded, setExpanded] = React.useState(false);
+  const allDone = entries.length > 0 && entries.every(e => e.completed);
+  const completedSets = entries.filter(e => e.completed).length;
 
-  React.useEffect(() => { setReps(entry?.actualReps?.toString() ?? ""); setWeight(entry?.actualWeight?.toString() ?? ""); setTimeSec(entry?.actualTime?.toString() ?? ""); setNotes(entry?.notes ?? ""); setCompleted(entry?.completed ?? false); }, [entry?.id, entry?.actualReps, entry?.actualWeight, entry?.actualTime, entry?.completed]);
-  React.useEffect(() => { if (canEdit && !completed) setExpanded(true); }, [canEdit, completed]);
-  const isDone = completed;
-
-  function handleSave() {
-    if (!entry) return; setSaving(true);
-    onSave(entry.id, { actualReps: reps ? parseInt(reps) : null, actualWeight: weight ? parseFloat(weight) : null, actualTime: timeSec ? parseInt(timeSec) : null, notes: notes.trim() || null, completed: true });
-    setCompleted(true); setExpanded(false); setTimeout(() => setSaving(false), 500);
-  }
+  React.useEffect(() => { if (canEdit && !allDone) setExpanded(true); }, [canEdit, allDone]);
 
   const targetIsTime = exercise.repsOrDuration && (exercise.repsOrDuration.toLowerCase().includes("sec") || exercise.repsOrDuration.toLowerCase().includes("min") || exercise.repsOrDuration.toLowerCase().includes("hold"));
   const targetIsReps = exercise.repsOrDuration && !targetIsTime;
 
   return (
-    <Card className={cn("overflow-hidden transition-all", isDone && "border-emerald-500/30 bg-emerald-500/5")}>
+    <Card className={cn("overflow-hidden transition-all", allDone && "border-emerald-500/30 bg-emerald-500/5")}>
       <CardContent className="p-3">
-        <div className="flex items-start gap-3" onClick={() => setExpanded(!expanded)} style={{ cursor: isDone ? "pointer" : "default" }}>
+        <div className="flex items-start gap-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
           <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">{index + 1}</span>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2"><p className="text-sm font-medium leading-tight">{exercise.exerciseName}</p>{isDone && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}{isDone && canEdit && <ChevronDown className={cn("ml-auto h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />}</div>
-            {isDone && !expanded && entry && <p className="mt-0.5 text-xs text-muted-foreground">{entry.actualReps && <span>{entry.actualReps} reps · </span>}{entry.actualTime && <span>{entry.actualTime}s · </span>}{entry.actualWeight && <span>{entry.actualWeight} kg</span>}{!entry.actualReps && !entry.actualTime && <span>Logged</span>}</p>}
-            {(expanded || !isDone) && (<><div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground"><span>Sets: {exercise.sets}</span>{exercise.repsOrDuration && <span>Target: <span className="font-medium text-foreground/70">{exercise.repsOrDuration}</span></span>}{exercise.rest && <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" /> {exercise.rest}</span>}</div>{exercise.equipment && <p className="mt-0.5 text-xs text-muted-foreground">🏋️ {exercise.equipment}</p>}{exercise.coachingNotes && <p className="mt-1 text-xs italic text-muted-foreground">{exercise.coachingNotes}</p>}</>)}
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium leading-tight">{exercise.exerciseName}</p>
+              {allDone && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}
+              {entries.length > 0 && !allDone && <span className="text-[10px] font-medium text-muted-foreground">{completedSets}/{entries.length} sets</span>}
+              <ChevronDown className={cn("ml-auto h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+            </div>
+            {!expanded && allDone && entries.length > 0 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {entries.map((e, i) => (
+                  <span key={e.id}>{i > 0 && " · "}{e.actualReps && `${e.actualReps}r`}{e.actualTime && `${e.actualTime}s`}{e.actualWeight ? `@${e.actualWeight}kg` : ""}</span>
+                ))}
+              </p>
+            )}
+            {(expanded || !allDone) && (
+              <>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>Sets: {exercise.sets}</span>
+                  {exercise.repsOrDuration && <span>Target: <span className="font-medium text-foreground/70">{exercise.repsOrDuration}</span></span>}
+                  {exercise.rest && <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" /> {exercise.rest}</span>}
+                </div>
+                {exercise.equipment && <p className="mt-0.5 text-xs text-muted-foreground">🏋️ {exercise.equipment}</p>}
+                {exercise.coachingNotes && <p className="mt-1 text-xs italic text-muted-foreground">{exercise.coachingNotes}</p>}
+              </>
+            )}
           </div>
         </div>
+
         {canEdit && expanded && (
-          <div className="mt-3 border-t border-border/30 pt-3">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {targetIsReps && <div className="space-y-1"><label className="text-[10px] font-semibold uppercase text-muted-foreground">Reps</label><input type="number" placeholder="10" value={reps} onChange={e => setReps(e.target.value)} className="h-10 w-full border border-border/40 bg-background text-center text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>}
-              {targetIsTime && <div className="space-y-1"><label className="text-[10px] font-semibold uppercase text-muted-foreground">Time (sec)</label><input type="number" placeholder="30" value={timeSec} onChange={e => setTimeSec(e.target.value)} className="h-10 w-full border border-border/40 bg-background text-center text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>}
-              <div className="space-y-1"><label className="text-[10px] font-semibold uppercase text-muted-foreground">Weight (kg)</label><input type="number" step="0.5" placeholder="0" value={weight} onChange={e => setWeight(e.target.value)} className="h-10 w-full border border-border/40 bg-background text-center text-base font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-            </div>
-            <div className="mt-2"><textarea placeholder="Notes" value={notes} onChange={e => setNotes(e.target.value)} rows={1} className="w-full resize-none rounded-lg border border-border/40 bg-background p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring" /></div>
-            <div className="mt-2 flex items-center justify-between"><span className="text-xs text-muted-foreground">{isDone ? "Logged ✓" : "Not logged"}</span><Button size="sm" onClick={handleSave} disabled={saving || !entry} className="gap-1.5">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}{completed ? "Update" : "Save"}</Button></div>
+          <div className="mt-3 border-t border-border/30 pt-3 space-y-2">
+            {entries.map((entry) => (
+              <SetRow
+                key={entry.id}
+                entry={entry}
+                targetIsReps={!!targetIsReps}
+                targetIsTime={!!targetIsTime}
+                onSave={onSave}
+                onRemove={entries.length > 1 ? () => onRemoveSet(entry.id) : undefined}
+              />
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onAddSet(); }}
+              className="w-full gap-1.5 border-dashed text-xs text-muted-foreground hover:text-foreground"
+            >
+              + Add Set
+            </Button>
           </div>
         )}
-        {!canEdit && entry && (entry.actualReps || entry.actualTime || entry.actualWeight) && <div className="mt-2 rounded-md bg-muted/50 p-2.5 text-xs"><span className="font-medium text-foreground/70">Logged:</span> {entry.actualReps && <span>{entry.actualReps} reps</span>}{entry.actualTime && <span> · {entry.actualTime}s</span>}{entry.actualWeight && <span> · {entry.actualWeight} kg</span>}{entry.notes && <p className="mt-0.5 italic text-muted-foreground">{entry.notes}</p>}</div>}
+
+        {!canEdit && entries.length > 0 && entries.some(e => e.actualReps || e.actualTime || e.actualWeight) && (
+          <div className="mt-2 rounded-md bg-muted/50 p-2.5 text-xs space-y-1">
+            {entries.map((entry) => (
+              <div key={entry.id} className="flex items-center gap-2">
+                <span className="font-medium text-foreground/70">Set {entry.setNumber}:</span>
+                {entry.actualReps && <span>{entry.actualReps} reps</span>}
+                {entry.actualTime && <span>{entry.actualTime}s</span>}
+                {entry.actualWeight != null && entry.actualWeight > 0 && <span>· {entry.actualWeight} kg</span>}
+                {entry.notes && <span className="italic text-muted-foreground">— {entry.notes}</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
+  entry: LogEntry; targetIsReps: boolean; targetIsTime: boolean;
+  onSave: (entryId: string, data: Partial<LogEntry>) => void;
+  onRemove?: () => void;
+}) {
+  const [reps, setReps] = React.useState(entry.actualReps?.toString() ?? "");
+  const [weight, setWeight] = React.useState(entry.actualWeight?.toString() ?? "");
+  const [timeSec, setTimeSec] = React.useState(entry.actualTime?.toString() ?? "");
+  const [notes, setNotes] = React.useState(entry.notes ?? "");
+  const [completed, setCompleted] = React.useState(entry.completed);
+  const [saving, setSaving] = React.useState(false);
+  const [showNotes, setShowNotes] = React.useState(!!entry.notes);
+
+  React.useEffect(() => {
+    setReps(entry.actualReps?.toString() ?? "");
+    setWeight(entry.actualWeight?.toString() ?? "");
+    setTimeSec(entry.actualTime?.toString() ?? "");
+    setNotes(entry.notes ?? "");
+    setCompleted(entry.completed);
+  }, [entry.id, entry.actualReps, entry.actualWeight, entry.actualTime, entry.completed, entry.notes]);
+
+  function handleSave() {
+    setSaving(true);
+    onSave(entry.id, {
+      actualReps: reps ? parseInt(reps) : null,
+      actualWeight: weight ? parseFloat(weight) : null,
+      actualTime: timeSec ? parseInt(timeSec) : null,
+      notes: notes.trim() || null,
+      completed: true,
+    });
+    setCompleted(true);
+    setTimeout(() => setSaving(false), 500);
+  }
+
+  return (
+    <div className={cn(
+      "rounded-lg border p-2.5 transition-all",
+      completed ? "border-emerald-500/30 bg-emerald-500/5" : "border-border/40 bg-background"
+    )}>
+      <div className="flex items-center gap-2">
+        <span className={cn(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+          completed ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+        )}>
+          {entry.setNumber}
+        </span>
+
+        <div className="flex flex-1 items-center gap-2">
+          {targetIsReps && (
+            <div className="flex-1 space-y-0.5">
+              <label className="text-[9px] font-semibold uppercase text-muted-foreground">Reps</label>
+              <input
+                type="number" placeholder="—" value={reps}
+                onChange={e => setReps(e.target.value)}
+                onClick={e => e.stopPropagation()}
+                className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          )}
+          {targetIsTime && (
+            <div className="flex-1 space-y-0.5">
+              <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (sec)</label>
+              <input
+                type="number" placeholder="—" value={timeSec}
+                onChange={e => setTimeSec(e.target.value)}
+                onClick={e => e.stopPropagation()}
+                className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          )}
+          <div className="flex-1 space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase text-muted-foreground">Weight (kg)</label>
+            <input
+              type="number" step="0.5" placeholder="0" value={weight}
+              onChange={e => setWeight(e.target.value)}
+              onClick={e => e.stopPropagation()}
+              className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowNotes(!showNotes); }}
+            className={cn("rounded p-1 text-muted-foreground transition-colors hover:text-foreground", showNotes && "text-primary")}
+            title="Notes"
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+          <Button
+            size="sm" variant={completed ? "outline" : "default"}
+            onClick={(e) => { e.stopPropagation(); handleSave(); }}
+            disabled={saving}
+            className="h-8 gap-1 px-2 text-xs"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : completed ? <CheckCircle2 className="h-3 w-3" /> : <Save className="h-3 w-3" />}
+            {completed ? "✓" : "Save"}
+          </Button>
+          {onRemove && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+              title="Remove set"
+            >
+              <RotateCcw className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showNotes && (
+        <div className="mt-1.5 pl-8">
+          <input
+            type="text" placeholder="Notes for this set..."
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            className="h-7 w-full rounded-md border border-border/40 bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      )}
+    </div>
   );
 }

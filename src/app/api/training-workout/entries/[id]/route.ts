@@ -63,3 +63,26 @@ export async function PATCH(
     },
   });
 }
+
+// DELETE /api/training-workout/entries/[id] — remove a set entry
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const userId = await getAuthUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+
+  const log = await db.sessionLog.findUnique({
+    where: { id },
+    include: { workout: { select: { userId: true } } },
+  });
+  if (!log || log.workout.userId !== userId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await db.sessionLog.delete({ where: { id } });
+
+  return NextResponse.json({ success: true });
+}
