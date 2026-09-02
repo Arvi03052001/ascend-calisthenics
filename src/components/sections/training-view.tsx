@@ -3,9 +3,10 @@
 import * as React from "react";
 import {
   Dumbbell, Clock, CheckCircle2, Info, TrendingUp, ChevronDown,
-  Play, Save, Loader2, RotateCcw, Trash2, Plus, ChevronLeft, ChevronRight, Calendar, AlertCircle, XCircle,
+  Play, Save, Loader2, RotateCcw, Trash2, Plus, ChevronLeft, ChevronRight, Calendar, AlertCircle, XCircle, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { AIProgressionResult } from "@/lib/ai-progression";
 
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
@@ -574,6 +575,7 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
   onRemoveSet: (entryId: string) => void;
 }) {
   const [expanded, setExpanded] = React.useState(false);
+  const [aiProgression, setAiProgression] = React.useState<AIProgressionResult | null>(null);
   const allDone = entries.length > 0 && entries.every(e => e.completed);
   const completedSets = entries.filter(e => e.completed).length;
 
@@ -581,6 +583,13 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
     if (allDone) setExpanded(false);
     else if (canEdit) setExpanded(true);
   }, [canEdit, allDone]);
+
+  React.useEffect(() => {
+    fetch(`/api/training-workout/ai-progression?exerciseName=${encodeURIComponent(exercise.exerciseName)}&baselineTarget=${encodeURIComponent(exercise.repsOrDuration || "")}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setAiProgression(data))
+      .catch(() => setAiProgression(null));
+  }, [exercise.exerciseName, exercise.repsOrDuration]);
 
   const targetIsTime = exercise.repsOrDuration && (exercise.repsOrDuration.toLowerCase().includes("sec") || exercise.repsOrDuration.toLowerCase().includes("min") || exercise.repsOrDuration.toLowerCase().includes("hold"));
   const targetIsReps = exercise.repsOrDuration && !targetIsTime;
@@ -618,6 +627,24 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
           </div>
         </div>
 
+        {/* AI Progressive Overload Target Banner */}
+        {expanded && aiProgression && aiProgression.hasHistory && (
+          <div className="mt-2.5 rounded-lg border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-purple-700 dark:text-purple-300">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+                AI Overload Goal: {aiProgression.aiTarget.displayText}
+              </span>
+              <Badge variant="outline" className="border-purple-500/40 bg-purple-500/15 text-[10px] text-purple-600 dark:text-purple-300">
+                ⚡ {aiProgression.aiTarget.overloadText}
+              </Badge>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              {aiProgression.coachingTip}
+            </p>
+          </div>
+        )}
+
         {canEdit && expanded && (
           <div className="mt-3 border-t border-border/30 pt-3 space-y-2">
             {entries.map((entry) => (
@@ -626,6 +653,8 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
                 entry={entry}
                 targetIsReps={!!targetIsReps}
                 targetIsTime={!!targetIsTime}
+                aiTargetReps={aiProgression?.aiTarget?.targetReps ?? null}
+                aiTargetTime={aiProgression?.aiTarget?.targetTime ?? null}
                 onSave={onSave}
                 onRemove={() => onRemoveSet(entry.id)}
               />
@@ -659,8 +688,10 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
   );
 }
 
-function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
+function SetRow({ entry, targetIsReps, targetIsTime, aiTargetReps, aiTargetTime, onSave, onRemove }: {
   entry: LogEntry; targetIsReps: boolean; targetIsTime: boolean;
+  aiTargetReps?: number | null;
+  aiTargetTime?: number | null;
   onSave: (entryId: string, data: Partial<LogEntry>) => void;
   onRemove: () => void;
 }) {
@@ -691,9 +722,9 @@ function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
   function handleSave() {
     setSaving(true);
     onSave(entry.id, {
-      actualReps: reps ? parseInt(reps) : null,
+      actualReps: reps ? parseInt(reps) : (aiTargetReps ?? null),
       actualWeight: weight ? parseFloat(weight) : null,
-      actualTime: timeSec ? parseInt(timeSec) : null,
+      actualTime: timeSec ? parseInt(timeSec) : (aiTargetTime ?? null),
       notes: notes.trim() || null,
       completed: true,
     });
@@ -728,7 +759,9 @@ function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
             <div className="flex-1 space-y-0.5">
               <label className="text-[9px] font-semibold uppercase text-muted-foreground">Reps</label>
               <input
-                type="number" placeholder="—" value={reps}
+                type="number"
+                placeholder={aiTargetReps ? `${aiTargetReps} (AI)` : "—"}
+                value={reps}
                 onChange={e => setReps(e.target.value)}
                 onClick={e => e.stopPropagation()}
                 className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -739,7 +772,9 @@ function SetRow({ entry, targetIsReps, targetIsTime, onSave, onRemove }: {
             <div className="flex-1 space-y-0.5">
               <label className="text-[9px] font-semibold uppercase text-muted-foreground">Time (sec)</label>
               <input
-                type="number" placeholder="—" value={timeSec}
+                type="number"
+                placeholder={aiTargetTime ? `${aiTargetTime}s (AI)` : "—"}
+                value={timeSec}
                 onChange={e => setTimeSec(e.target.value)}
                 onClick={e => e.stopPropagation()}
                 className="h-8 w-full rounded-md border border-border/40 bg-background text-center text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
