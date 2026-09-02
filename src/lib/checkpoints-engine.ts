@@ -47,17 +47,23 @@ export async function getUserCheckpoints(userId: string, tierFilter?: SkillTier)
   for (const item of skillsToEvaluate) {
     const dbRecord = dbCheckpoints.find((c) => c.skillName === item.name);
 
-    // Find best performance in logs matching exercise names
+    // Find best performance in logs matching exercise names exactly
     let bestVal = 0;
     for (const log of logs) {
-      if (item.exerciseMatch.some((name) => log.exerciseName.toLowerCase().includes(name.toLowerCase()))) {
+      const logName = log.exerciseName.trim().toLowerCase();
+      const isMatch = item.exerciseMatch.some((name) => {
+        const targetName = name.trim().toLowerCase();
+        return logName === targetName;
+      });
+
+      if (isMatch) {
         const val = item.isTimeBased ? (log.actualTime ?? 0) : (log.actualReps ?? 0);
         if (val > bestVal) bestVal = val;
       }
     }
 
     // Check manual override if saved in ProgressCheckpoint
-    let achieved = dbRecord?.achieved ?? (bestVal >= item.targetNumeric);
+    let achieved = dbRecord ? dbRecord.achieved : (bestVal >= item.targetNumeric && bestVal > 0);
 
     const completionPercent = Math.min(100, Math.round((bestVal / item.targetNumeric) * 100));
 
