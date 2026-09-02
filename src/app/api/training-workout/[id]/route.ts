@@ -36,19 +36,8 @@ export async function PATCH(
   }
 
   if (parsed.data.reset) {
-    await db.workout.update({
+    await db.workout.delete({
       where: { id },
-      data: { status: "planned" },
-    });
-    await db.sessionLog.updateMany({
-      where: { workoutId: id },
-      data: {
-        actualReps: null,
-        actualWeight: null,
-        actualTime: null,
-        notes: null,
-        completed: false,
-      },
     });
     return NextResponse.json({ ok: true, reset: true });
   }
