@@ -116,47 +116,61 @@ export async function getAIProgressionForExercise(
   let coachingTip = "";
 
   if (isTimeBased || maxTime !== null) {
-    const lastTime = maxTime || 10;
-    // Step up +2 to +5 seconds toward roadmap hold target
-    const step = lastTime < 30 ? 3 : 5;
-    aiTargetTime = lastTime + step;
-
-    // Cap at roadmap target if reached
-    if (roadmapNumeric && aiTargetTime > roadmapNumeric) {
-      aiTargetTime = roadmapNumeric;
-    }
-
-    const formattedTarget = formatHumanTime(aiTargetTime);
-    const formattedLast = formatHumanTime(lastTime);
-
-    displayText = formattedTarget;
-    overloadText = `+${step}s growth step (Last: ${formattedLast})`;
-    
-    if (roadmapNumeric) {
-      const pct = Math.min(100, Math.round((lastTime / roadmapNumeric) * 100));
-      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${formattedLast} (${pct}% of target). Today's AI Goal is ${formattedTarget} to build toward your ${roadmapTargetMetric} benchmark!`;
+    if (maxTime === 0) {
+      aiTargetTime = 10;
+      displayText = "10s (Supported Hold)";
+      overloadText = "⚠️ 0s Logged — Hold Regression Active";
+      coachingTip = `Could not hold ${exerciseName} on ${lastDateStr || "last session"}? Totally normal! Tendon and joint conditioning takes time. Tap "Regress Skill" below to switch to an angle regression or bent-knee hold to build your base first!`;
     } else {
-      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${formattedLast}. Today's AI Overload Goal is ${formattedTarget}!`;
+      const lastTime = maxTime !== null ? maxTime : 10;
+      // Step up +2 to +5 seconds toward roadmap hold target
+      const step = lastTime < 30 ? 3 : 5;
+      aiTargetTime = lastTime + step;
+
+      // Cap at roadmap target if reached
+      if (roadmapNumeric && aiTargetTime > roadmapNumeric) {
+        aiTargetTime = roadmapNumeric;
+      }
+
+      const formattedTarget = formatHumanTime(aiTargetTime);
+      const formattedLast = formatHumanTime(lastTime);
+
+      displayText = formattedTarget;
+      overloadText = `+${step}s growth step (Last: ${formattedLast})`;
+      
+      if (roadmapNumeric) {
+        const pct = Math.min(100, Math.round((lastTime / roadmapNumeric) * 100));
+        coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${formattedLast} (${pct}% of target). Today's AI Goal is ${formattedTarget} to build toward your ${roadmapTargetMetric} benchmark!`;
+      } else {
+        coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you held ${formattedLast}. Today's AI Overload Goal is ${formattedTarget}!`;
+      }
     }
   } else {
-    const lastReps = maxReps || 8;
-    // Step up +2 to +3 reps toward roadmap rep target
-    const step = lastReps < 15 ? 2 : 3;
-    aiTargetReps = lastReps + step;
-
-    // Cap at roadmap target if reached
-    if (roadmapNumeric && aiTargetReps > roadmapNumeric) {
-      aiTargetReps = roadmapNumeric;
-    }
-
-    displayText = `${aiTargetReps} reps`;
-    overloadText = `+${step} reps growth step (Last: ${lastReps} reps)`;
-
-    if (roadmapNumeric) {
-      const pct = Math.min(100, Math.round((lastReps / roadmapNumeric) * 100));
-      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you hit ${lastReps} reps (${pct}% of target). Today's AI Goal is ${aiTargetReps} reps to build toward your ${roadmapTargetMetric} benchmark!`;
+    if (maxReps === 0) {
+      aiTargetReps = 3;
+      displayText = "3-4 reps (Regressed)";
+      overloadText = "⚠️ 0 Reps Detected — Motor Bridge Recommended";
+      coachingTip = `0 reps logged on ${exerciseName} (${lastDateStr || "last session"})? High-threshold calisthenics movements overload shoulders and levers quickly. Tap "Regress Skill" below to activate the Tri-Phasic Motor Bridge (Hands-Elevated version) so your CNS can learn the groove first!`;
     } else {
-      coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you hit ${lastReps} reps. Today's AI Overload Goal is ${aiTargetReps} reps!`;
+      const lastReps = maxReps !== null ? maxReps : 8;
+      // Step up +2 to +3 reps toward roadmap rep target
+      const step = lastReps < 15 ? 2 : 3;
+      aiTargetReps = lastReps + step;
+
+      // Cap at roadmap target if reached
+      if (roadmapNumeric && aiTargetReps > roadmapNumeric) {
+        aiTargetReps = roadmapNumeric;
+      }
+
+      displayText = `${aiTargetReps} reps`;
+      overloadText = `+${step} reps growth step (Last: ${lastReps} reps)`;
+
+      if (roadmapNumeric) {
+        const pct = Math.min(100, Math.round((lastReps / roadmapNumeric) * 100));
+        coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you hit ${lastReps} reps (${pct}% of target). Today's AI Goal is ${aiTargetReps} reps to build toward your ${roadmapTargetMetric} benchmark!`;
+      } else {
+        coachingTip = `Last session on ${lastDayName || "previous day"} (${lastDateStr}) you hit ${lastReps} reps. Today's AI Overload Goal is ${aiTargetReps} reps!`;
+      }
     }
   }
 

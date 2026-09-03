@@ -185,7 +185,7 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
                     tickLine={false}
                   />
                   <YAxis
-                    domain={[yMin, yMax]}
+                    domain={[yMin ?? "auto", yMax ?? "auto"]}
                     tick={{ fontSize: 11, fill: "currentColor" }}
                     stroke="currentColor"
                     strokeOpacity={0.3}

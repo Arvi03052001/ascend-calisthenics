@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   Dumbbell, Clock, CheckCircle2, Info, TrendingUp, ChevronDown,
   Play, Save, Loader2, RotateCcw, Trash2, Plus, ChevronLeft, ChevronRight, Calendar, AlertCircle, XCircle, Sparkles,
-  Target, Flame, Zap, Check, Lock, ShieldAlert,
+  Target, Flame, Zap, Check, Lock, ShieldAlert, TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { AIProgressionResult } from "@/lib/ai-progression";
@@ -18,8 +18,12 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { secondsToHHMMSS, hhmmssToSeconds, formatHumanTime } from "@/lib/date-utils";
+import { getSkillRegression, type RegressionOption } from "@/lib/skill-regressions";
 
 const PHASE_ORDER = ["Warm-Up", "Skill Work", "Main Strength", "Accessories", "Finisher", "Cooldown"];
 const PHASE_META: Record<string, { label: string; color: string }> = {
@@ -578,7 +582,7 @@ function DayDetail({ dayIndex, weekStartStr, dayDateFormatted, onBack }: {
     return () => { cancelled = true; clearTimeout(timeout); };
   }, [dayIndex, weekStartStr]);
 
-  async function handleStart() {
+  async function handleStart(): Promise<string | null> {
     setStarting(true);
     try {
       const res = await fetch("/api/training-workout", {
@@ -588,9 +592,74 @@ function DayDetail({ dayIndex, weekStartStr, dayDateFormatted, onBack }: {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setWorkoutId(data.workout.id); setEntries(data.workout.entries); setStatus("in_progress");
+      setWorkoutId(data.workout.id);
+      setEntries(data.workout.entries);
+      setStatus("in_progress");
       toast.success("Workout started — log your sets below!");
-    } catch { toast.error("Could not start workout."); } finally { setStarting(false); }
+      return data.workout.id;
+    } catch {
+      toast.error("Could not start workout.");
+      return null;
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  // Auto-sync dbExercises when entries already contain regressed items from previous sessions
+  React.useEffect(() => {
+    if (entries.length > 0 && dbExercises.length > 0) {
+      let changed = false;
+      const updated = dbExercises.map((ex) => {
+        const match = entries.find((e) => e.phase === ex.phase && e.notes?.includes(`Regressed from ${ex.exerciseName}`));
+        if (match) {
+          changed = true;
+          return {
+            ...ex,
+            exerciseName: match.exerciseName,
+            repsOrDuration: match.targetReps || match.targetTime || ex.repsOrDuration,
+            equipment: match.equipment || ex.equipment,
+          };
+        }
+        return ex;
+      });
+      if (changed) setDbExercises(updated);
+    }
+  }, [entries, dbExercises]);
+
+  async function handleRegressSuccess(
+    originalName: string,
+    newName: string,
+    newTarget: string,
+    newEquipment?: string | null,
+    newNotes?: string | null
+  ) {
+    setDbExercises((prev) =>
+      prev.map((item) =>
+        item.exerciseName === originalName
+          ? {
+              ...item,
+              exerciseName: newName,
+              repsOrDuration: newTarget,
+              equipment: newEquipment !== undefined ? newEquipment : item.equipment,
+              coachingNotes: newNotes || item.coachingNotes,
+            }
+          : item
+      )
+    );
+
+    // Refresh workout entries
+    if (workoutId) {
+      try {
+        const query = weekStartStr ? `dayIndex=${dayIndex}&weekStart=${weekStartStr}` : `dayIndex=${dayIndex}`;
+        const res = await fetch(`/api/training-workout?${query}`, { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.workout?.entries) {
+            setEntries(data.workout.entries);
+          }
+        }
+      } catch {}
+    }
   }
 
   async function handleComplete() {
@@ -724,9 +793,14 @@ function DayDetail({ dayIndex, weekStartStr, dayDateFormatted, onBack }: {
                           index={idx}
                           entries={exerciseEntries}
                           canEdit={canEdit}
+                          workoutId={workoutId}
+                          onStartWorkout={handleStart}
                           onSave={handleSaveEntry}
                           onAddSet={() => handleAddSet(ex)}
                           onRemoveSet={handleRemoveSet}
+                          onRegressSuccess={(newName, newTarget, newEquipment, newNotes) =>
+                            handleRegressSuccess(ex.exerciseName, newName, newTarget, newEquipment, newNotes)
+                          }
                         />
                       );
                     })}
@@ -761,14 +835,32 @@ function CollapsibleSection({ label, color, count, completedCount, totalEntries,
   );
 }
 
-function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet, onRemoveSet }: {
-  exercise: DBExercise; index: number; entries: LogEntry[]; canEdit: boolean;
+function DBExerciseLogCard({
+  exercise,
+  index,
+  entries,
+  canEdit,
+  workoutId,
+  onStartWorkout,
+  onSave,
+  onAddSet,
+  onRemoveSet,
+  onRegressSuccess,
+}: {
+  exercise: DBExercise;
+  index: number;
+  entries: LogEntry[];
+  canEdit: boolean;
+  workoutId: string | null;
+  onStartWorkout: () => Promise<string | null>;
   onSave: (entryId: string, data: Partial<LogEntry>) => void;
   onAddSet: () => void;
   onRemoveSet: (entryId: string) => void;
+  onRegressSuccess: (newName: string, newTarget: string, newEquipment?: string | null, newNotes?: string | null) => void;
 }) {
   const allCompleted = entries.length > 0 && entries.every((e) => e.completed);
   const [expanded, setExpanded] = React.useState(!allCompleted);
+  const [showRegressionModal, setShowRegressionModal] = React.useState(false);
   const [aiProgression, setAiProgression] = React.useState<AIProgressionResult | null>(null);
   const allDone = entries.length > 0 && entries.every(e => e.completed);
   const completedSets = entries.filter(e => e.completed).length;
@@ -829,6 +921,26 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
           </div>
         </div>
 
+        {/* Can't do this? Regress Skill button */}
+        {!allDone && (
+          <div className="mt-2.5 flex items-center justify-between border-t border-border/30 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowRegressionModal(true);
+              }}
+              className="h-7 gap-1.5 border-amber-500/30 bg-amber-500/10 px-2.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-500/20 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+            >
+              <TrendingDown className="h-3.5 w-3.5 text-amber-500" />
+              Can&apos;t do this? Regress Skill
+            </Button>
+            <span className="text-[10px] font-medium text-muted-foreground">⚡ Tri-Phasic Motor Bridge</span>
+          </div>
+        )}
+
         {/* AI Progressive Overload Target Banner */}
         {expanded && aiProgression && aiProgression.hasHistory && (
           <div className="mt-2.5 rounded-lg border border-purple-500/30 bg-purple-500/10 p-2.5 text-xs">
@@ -885,8 +997,298 @@ function DBExerciseLogCard({ exercise, index, entries, canEdit, onSave, onAddSet
             ))}
           </div>
         )}
+
+        <SkillRegressionModal
+          open={showRegressionModal}
+          onOpenChange={setShowRegressionModal}
+          exerciseName={exercise.exerciseName}
+          phase={exercise.phase}
+          workoutId={workoutId}
+          onStartWorkout={onStartWorkout}
+          onRegressSuccess={onRegressSuccess}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+function SkillRegressionModal({
+  open,
+  onOpenChange,
+  exerciseName,
+  phase,
+  workoutId,
+  onStartWorkout,
+  onRegressSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  exerciseName: string;
+  phase: string;
+  workoutId: string | null;
+  onStartWorkout: () => Promise<string | null>;
+  onRegressSuccess: (newName: string, newTarget: string, newEquipment?: string | null, newNotes?: string | null) => void;
+}) {
+  const bridge = React.useMemo(() => getSkillRegression(exerciseName), [exerciseName]);
+  const [activating, setActivating] = React.useState<string | null>(null);
+  const [customOpen, setCustomOpen] = React.useState(false);
+  const [customName, setCustomName] = React.useState("");
+  const [customSets, setCustomSets] = React.useState("3");
+  const [customTarget, setCustomTarget] = React.useState("8 reps");
+
+  async function handleActivate(option: RegressionOption) {
+    setActivating(option.name);
+    try {
+      let activeWorkoutId = workoutId;
+      if (!activeWorkoutId) {
+        activeWorkoutId = await onStartWorkout();
+        if (!activeWorkoutId) {
+          toast.error("Could not start workout session.");
+          return;
+        }
+      }
+
+      const res = await fetch("/api/training-workout/regress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workoutId: activeWorkoutId,
+          originalExerciseName: exerciseName,
+          newExerciseName: option.name,
+          phase,
+          targetReps: option.isTimeBased ? null : option.target,
+          targetTime: option.isTimeBased ? option.target : null,
+          equipment: option.equipment,
+          notes: `Regressed from ${exerciseName} (${option.label}) — Tri-Phasic Motor Bridge`,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Regression failed");
+
+      toast.success(`Swapped to ${option.name}! Build that motor pattern! 💪`);
+      onRegressSuccess(option.name, option.target, option.equipment, option.notes);
+      onOpenChange(false);
+    } catch {
+      toast.error("Could not regress exercise.");
+    } finally {
+      setActivating(null);
+    }
+  }
+
+  async function handleCustomActivate() {
+    if (!customName.trim()) {
+      toast.error("Please enter an exercise name");
+      return;
+    }
+    setActivating("custom");
+    try {
+      let activeWorkoutId = workoutId;
+      if (!activeWorkoutId) {
+        activeWorkoutId = await onStartWorkout();
+        if (!activeWorkoutId) return;
+      }
+
+      const res = await fetch("/api/training-workout/regress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workoutId: activeWorkoutId,
+          originalExerciseName: exerciseName,
+          newExerciseName: customName.trim(),
+          phase,
+          targetReps: customTarget.trim(),
+          equipment: "Custom",
+          notes: `Custom swap from ${exerciseName}`,
+        }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      toast.success(`Swapped to ${customName.trim()}! 💪`);
+      onRegressSuccess(customName.trim(), customTarget.trim(), "Custom", `Custom replacement for ${exerciseName}`);
+      onOpenChange(false);
+    } catch {
+      toast.error("Could not save custom replacement.");
+    } finally {
+      setActivating(null);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-5 sm:p-6">
+        <DialogHeader className="space-y-1.5 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <TrendingDown className="h-4 w-4" />
+            </span>
+            <div>
+              <DialogTitle className="text-base sm:text-lg">Tri-Phasic Skill Motor Bridge</DialogTitle>
+              <DialogDescription className="text-xs">
+                Target: <span className="font-semibold text-foreground">{exerciseName}</span> · {bridge.category}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {/* Athletic Coaching Rationale */}
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
+          <p className="font-semibold text-primary">⚡ Coach&apos;s Biomechanical Insight:</p>
+          <p className="mt-0.5 text-[11px]">{bridge.rationale}</p>
+        </div>
+
+        {/* 3 Tri-Phasic Options */}
+        <div className="space-y-3 pt-1">
+          {/* 1. Angle Shift */}
+          <div className="rounded-xl border border-border/60 bg-card p-3.5 transition-all hover:border-primary/40 hover:shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-foreground">{bridge.options.angle.label}</span>
+                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                    RECOMMENDED BASE
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm font-semibold text-primary">{bridge.options.angle.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  🎯 Target: <span className="font-medium text-foreground">{bridge.options.angle.sets} sets × {bridge.options.angle.target}</span> · 🏋️ {bridge.options.angle.equipment}
+                </p>
+                <p className="mt-1 text-[11px] italic text-muted-foreground">{bridge.options.angle.notes}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => handleActivate(bridge.options.angle)}
+                disabled={activating !== null}
+                className="gap-1.5 text-xs font-semibold"
+              >
+                {activating === bridge.options.angle.name ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                Activate Angle Shift
+              </Button>
+            </div>
+          </div>
+
+          {/* 2. Eccentric Negatives */}
+          <div className="rounded-xl border border-border/60 bg-card p-3.5 transition-all hover:border-purple-500/40 hover:shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-foreground">{bridge.options.eccentric.label}</span>
+                  <Badge variant="outline" className="border-purple-500/30 bg-purple-500/10 text-[9px] font-bold text-purple-600 dark:text-purple-400">
+                    CNS OVERLOAD
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm font-semibold text-purple-600 dark:text-purple-400">{bridge.options.eccentric.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  🎯 Target: <span className="font-medium text-foreground">{bridge.options.eccentric.sets} sets × {bridge.options.eccentric.target}</span> · 🏋️ {bridge.options.eccentric.equipment}
+                </p>
+                <p className="mt-1 text-[11px] italic text-muted-foreground">{bridge.options.eccentric.notes}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => handleActivate(bridge.options.eccentric)}
+                disabled={activating !== null}
+                className="gap-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300"
+              >
+                {activating === bridge.options.eccentric.name ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                Activate Negatives
+              </Button>
+            </div>
+          </div>
+
+          {/* 3. Isometric Lock */}
+          <div className="rounded-xl border border-border/60 bg-card p-3.5 transition-all hover:border-blue-500/40 hover:shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-foreground">{bridge.options.isometric.label}</span>
+                  <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-[9px] font-bold text-blue-600 dark:text-blue-400">
+                    TENDON STABILITY
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm font-semibold text-blue-600 dark:text-blue-400">{bridge.options.isometric.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  🎯 Target: <span className="font-medium text-foreground">{bridge.options.isometric.sets} sets × {bridge.options.isometric.target}</span> · 🏋️ {bridge.options.isometric.equipment}
+                </p>
+                <p className="mt-1 text-[11px] italic text-muted-foreground">{bridge.options.isometric.notes}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleActivate(bridge.options.isometric)}
+                disabled={activating !== null}
+                className="gap-1.5 text-xs font-semibold"
+              >
+                {activating === bridge.options.isometric.name ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+                Activate Static Hold
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom Replacement Accordion */}
+        <div className="border-t border-border/40 pt-3">
+          <button
+            type="button"
+            onClick={() => setCustomOpen(!customOpen)}
+            className="flex w-full items-center justify-between text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <span>Or choose a custom replacement exercise</span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", customOpen && "rotate-180")} />
+          </button>
+
+          {customOpen && (
+            <div className="mt-3 space-y-2.5 rounded-lg border border-border/50 bg-muted/30 p-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold uppercase text-muted-foreground">Exercise Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Incline Dumbbell Press, Resistance Band Push-Down"
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  className="h-8 w-full rounded-md border border-border/40 bg-background px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase text-muted-foreground">Sets</label>
+                  <input
+                    type="text"
+                    value={customSets}
+                    onChange={(e) => setCustomSets(e.target.value)}
+                    className="h-8 w-full rounded-md border border-border/40 bg-background px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase text-muted-foreground">Target (Reps or Time)</label>
+                  <input
+                    type="text"
+                    value={customTarget}
+                    onChange={(e) => setCustomTarget(e.target.value)}
+                    className="h-8 w-full rounded-md border border-border/40 bg-background px-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleCustomActivate}
+                disabled={activating !== null}
+                className="w-full gap-1.5 text-xs"
+              >
+                {activating === "custom" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save Custom Exercise
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
