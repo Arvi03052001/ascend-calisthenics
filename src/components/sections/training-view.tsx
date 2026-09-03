@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   Dumbbell, Clock, CheckCircle2, Info, TrendingUp, ChevronDown,
   Play, Save, Loader2, RotateCcw, Trash2, Plus, ChevronLeft, ChevronRight, Calendar, AlertCircle, XCircle, Sparkles,
-  Target, Flame, Zap, Check, Lock, ShieldAlert, TrendingDown,
+  Target, Flame, Zap, Check, Lock, ShieldAlert, TrendingDown, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { AIProgressionResult } from "@/lib/ai-progression";
@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { secondsToHHMMSS, hhmmssToSeconds, formatHumanTime } from "@/lib/date-utils";
 import { getSkillRegression, type RegressionOption } from "@/lib/skill-regressions";
+import { ExerciseDemoModal } from "@/components/ui/exercise-demo-modal";
 
 const PHASE_ORDER = ["Warm-Up", "Skill Work", "Main Strength", "Accessories", "Finisher", "Cooldown"];
 const PHASE_META: Record<string, { label: string; color: string }> = {
@@ -861,6 +862,7 @@ function DBExerciseLogCard({
   const allCompleted = entries.length > 0 && entries.every((e) => e.completed);
   const [expanded, setExpanded] = React.useState(!allCompleted);
   const [showRegressionModal, setShowRegressionModal] = React.useState(false);
+  const [showDemoModal, setShowDemoModal] = React.useState(false);
   const [aiProgression, setAiProgression] = React.useState<AIProgressionResult | null>(null);
   const allDone = entries.length > 0 && entries.every(e => e.completed);
   const completedSets = entries.filter(e => e.completed).length;
@@ -937,7 +939,22 @@ function DBExerciseLogCard({
               <TrendingDown className="h-3.5 w-3.5 text-amber-500" />
               Can&apos;t do this? Regress Skill
             </Button>
-            <span className="text-[10px] font-medium text-muted-foreground">⚡ Tri-Phasic Motor Bridge</span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDemoModal(true);
+                }}
+                className="h-7 gap-1 px-2.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Form Check
+              </Button>
+              <span className="text-[10px] font-medium text-muted-foreground">⚡ Tri-Phasic Motor Bridge</span>
+            </div>
           </div>
         )}
 
@@ -1006,6 +1023,11 @@ function DBExerciseLogCard({
           workoutId={workoutId}
           onStartWorkout={onStartWorkout}
           onRegressSuccess={onRegressSuccess}
+        />
+        <ExerciseDemoModal
+          open={showDemoModal}
+          onOpenChange={setShowDemoModal}
+          exerciseName={exercise.exerciseName}
         />
       </CardContent>
     </Card>
