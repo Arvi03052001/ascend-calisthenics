@@ -900,7 +900,15 @@ function DBExerciseLogCard({
               <p className="text-sm font-medium leading-tight">{exercise.exerciseName}</p>
               {allDone && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}
               {entries.length > 0 && !allDone && <span className="text-[10px] font-medium text-muted-foreground">{completedSets}/{entries.length} sets</span>}
-              <ChevronDown className={cn("ml-auto h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowDemoModal(true); }}
+                className="ml-auto flex items-center gap-1 rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-600 transition-colors hover:bg-cyan-500/20 dark:text-cyan-400 shrink-0"
+              >
+                <Eye className="h-3 w-3" />
+                Visual Demo
+              </button>
+              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
             </div>
             {!expanded && allDone && entries.length > 0 && (
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -939,22 +947,7 @@ function DBExerciseLogCard({
               <TrendingDown className="h-3.5 w-3.5 text-amber-500" />
               Can&apos;t do this? Regress Skill
             </Button>
-            <div className="flex items-center gap-1.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowDemoModal(true);
-                }}
-                className="h-7 gap-1 px-2.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted"
-              >
-                <Eye className="h-3.5 w-3.5" />
-                Form Check
-              </Button>
-              <span className="text-[10px] font-medium text-muted-foreground">⚡ Tri-Phasic Motor Bridge</span>
-            </div>
+            <span className="text-[10px] font-medium text-muted-foreground">⚡ Tri-Phasic Motor Bridge</span>
           </div>
         )}
 
