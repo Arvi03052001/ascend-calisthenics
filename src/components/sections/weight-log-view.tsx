@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type WeightLog = {
   id: string;
@@ -130,24 +131,28 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
     : undefined;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-          <Scale className="h-6 w-6 text-primary" />
-          Weight log
-        </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Step on the scale at the gym, log it here. Every entry moves your trend.
-        </p>
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 space-y-6">
+      <header className="flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm shadow-primary/15">
+          <Scale className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            Body Mass & Conditioning Trend
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Step on the scale, log daily weigh-ins, and watch your progression curve.
+          </p>
+        </div>
       </header>
 
       {/* Stat row */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Current" value={current ? `${current.toFixed(1)} kg` : "—"} accent />
-        <StatCard label="Start" value={start ? `${start.toFixed(1)} kg` : "—"} />
-        <StatCard label="Target" value={target ? `${target.toFixed(1)} kg` : "—"} />
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+        <StatCard label="Current Weight" value={current ? `${current.toFixed(1)} kg` : "—"} accent />
+        <StatCard label="Starting Baseline" value={start ? `${start.toFixed(1)} kg` : "—"} />
+        <StatCard label="Target Goal" value={target ? `${target.toFixed(1)} kg` : "—"} />
         <StatCard
-          label="Change"
+          label="Total Change"
           value={delta ? `${delta > 0 ? "+" : ""}${delta.toFixed(1)} kg` : "—"}
           tone={
             delta === null ? "neutral" : delta < 0 ? "good" : delta > 0 ? "bad" : "neutral"
@@ -156,31 +161,41 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
       </div>
 
       {/* Chart */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">Trend</CardTitle>
-          <CardDescription>Last 90 days · target line shown</CardDescription>
+      <Card className="glass-card overflow-hidden border border-border/70 rounded-3xl shadow-sm">
+        <CardHeader className="border-b border-border/40 bg-muted/20 pb-4 px-6 sm:px-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-bold">Transformation Trend</CardTitle>
+              <CardDescription className="text-xs sm:text-sm mt-0.5">Rolling 90-day trajectory with target line</CardDescription>
+            </div>
+            {target && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                🎯 Target: {target} kg
+              </span>
+            )}
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           {loading ? (
-            <div className="flex h-[260px] items-center justify-center text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
+            <div className="flex h-[280px] items-center justify-center text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+              <span className="text-sm">Loading trend data...</span>
             </div>
           ) : chartData.length === 0 ? (
             <EmptyState
               title="No weigh-ins yet"
-              body="Log your first weight below to start your trend chart."
+              body="Log your first weigh-in below to start generating your athletic transformation curve."
             />
           ) : (
-            <div className="h-[260px] w-full text-muted-foreground">
+            <div className="h-[280px] w-full text-muted-foreground">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: -8 }}>
-                  <CartesianGrid stroke="currentColor" strokeOpacity={0.18} strokeDasharray="3 3" />
+                <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 4, left: -10 }}>
+                  <CartesianGrid stroke="currentColor" strokeOpacity={0.12} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 11, fill: "currentColor" }}
                     stroke="currentColor"
-                    strokeOpacity={0.3}
+                    strokeOpacity={0.25}
                     minTickGap={20}
                     tickLine={false}
                   />
@@ -188,20 +203,22 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
                     domain={[yMin ?? "auto", yMax ?? "auto"]}
                     tick={{ fontSize: 11, fill: "currentColor" }}
                     stroke="currentColor"
-                    strokeOpacity={0.3}
+                    strokeOpacity={0.25}
                     width={44}
                     tickLine={false}
                   />
                   <Tooltip
                     contentStyle={{
-                      borderRadius: 10,
-                      border: "1px solid rgba(120,120,120,0.25)",
-                      background: "rgba(20,20,20,0.92)",
+                      borderRadius: 16,
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(15,23,42,0.95)",
+                      boxShadow: "0 10px 25px -5px rgba(0,0,0,0.5)",
                       color: "#fff",
                       fontSize: 12,
+                      padding: "8px 14px",
                     }}
-                    labelStyle={{ color: "#fff", fontWeight: 600 }}
-                    itemStyle={{ color: "#10b981" }}
+                    labelStyle={{ color: "#fff", fontWeight: 700 }}
+                    itemStyle={{ color: "#10b981", fontWeight: 600 }}
                     formatter={(v: number) => [`${v} kg`, "Weight"]}
                     labelFormatter={(_, p) => p?.[0]?.payload?.full ?? ""}
                   />
@@ -210,16 +227,17 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
                       y={target}
                       stroke="#10b981"
                       strokeDasharray="6 4"
-                      label={{ value: `Target ${target}kg`, fontSize: 10, fill: "#10b981", position: "right" }}
+                      strokeWidth={1.5}
+                      label={{ value: `Goal: ${target}kg`, fontSize: 11, fill: "#10b981", position: "right", fontWeight: 600 }}
                     />
                   )}
                   <Line
                     type="monotone"
                     dataKey="weight"
                     stroke="#10b981"
-                    strokeWidth={2.5}
-                    dot={{ r: 3, fill: "#10b981" }}
-                    activeDot={{ r: 5 }}
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
+                    activeDot={{ r: 6, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -229,15 +247,15 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
       </Card>
 
       {/* Add form */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">Log today&apos;s weight</CardTitle>
-          <CardDescription>One entry per weigh-in. You can add a note too.</CardDescription>
+      <Card className="glass-card border border-border/70 rounded-3xl overflow-hidden shadow-sm">
+        <CardHeader className="border-b border-border/40 bg-muted/20 pb-4 px-6 sm:px-8">
+          <CardTitle className="text-lg font-bold">Log Today&apos;s Weigh-In</CardTitle>
+          <CardDescription className="text-xs sm:text-sm mt-0.5">Quickly record your current bodyweight</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleAdd} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_2fr_auto]">
+        <CardContent className="p-6 sm:p-8 space-y-4">
+          <form onSubmit={handleAdd} className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_2fr_auto] items-end">
             <div className="space-y-1.5">
-              <label htmlFor="weight" className="text-xs font-medium text-muted-foreground">
+              <label htmlFor="weight" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Weight (kg)
               </label>
               <Input
@@ -247,59 +265,73 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
                 step="0.1"
                 min={35}
                 max={250}
-                placeholder={current ? current.toFixed(1) : "82.0"}
+                placeholder={current ? current.toFixed(1) : "75.0"}
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
-                className="h-11"
+                className="h-12 rounded-xl text-base font-semibold border-border/60"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="note" className="text-xs font-medium text-muted-foreground">
-                Note (optional)
+              <label htmlFor="note" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Optional Context / Notes
               </label>
               <Input
                 id="note"
-                placeholder="e.g. post-gym, fasted"
+                type="text"
+                placeholder="e.g. morning fasted, post-workout, creatine week 2"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="h-11"
-                maxLength={200}
+                className="h-12 rounded-xl text-sm border-border/60"
               />
             </div>
-            <div className="flex items-end">
-              <Button type="submit" size="lg" disabled={saving} className="h-11 w-full sm:w-auto">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4" /> Log it</>}
-              </Button>
-            </div>
+            <Button
+              type="submit"
+              disabled={saving}
+              className="h-12 rounded-xl font-bold bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90 px-6 gap-2"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Log Weight
+            </Button>
           </form>
-          {deltaToGo !== null && deltaToGo > 0 && (
-            <p className="mt-3 text-sm text-muted-foreground">
-              <span className="font-semibold text-primary">{deltaToGo.toFixed(1)} kg</span> to go until your target.
-            </p>
-          )}
-          {deltaToGo !== null && deltaToGo <= 0 && (
-            <p className="mt-3 text-sm font-medium text-primary">
-              Target reached. Time to set a new one.
-            </p>
-          )}
+
+          {/* Quick Increment Chips */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-muted-foreground text-[11px] uppercase tracking-wider">Quick Adjust:</span>
+            {[-1.0, -0.5, +0.5, +1.0].map((adj) => (
+              <Button
+                key={adj}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 rounded-lg text-xs font-medium border-border/60 hover:bg-muted"
+                onClick={() => {
+                  const base = parseFloat(weight) || current || 75.0;
+                  setWeight((base + adj).toFixed(1));
+                }}
+              >
+                {adj > 0 ? `+${adj}` : adj} kg
+              </Button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
       {/* History */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">History</CardTitle>
-          <CardDescription>Most recent first · last 90 days</CardDescription>
+      <Card className="glass-card border border-border/70 rounded-3xl overflow-hidden shadow-sm">
+        <CardHeader className="border-b border-border/40 bg-muted/20 pb-4 px-6 sm:px-8">
+          <CardTitle className="text-lg font-bold">Weigh-In History</CardTitle>
+          <CardDescription className="text-xs sm:text-sm mt-0.5">Chronological record · last 90 days</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex h-24 items-center justify-center text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
+            <div className="flex h-28 items-center justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" />
+              <span className="text-xs font-medium">Loading history...</span>
             </div>
           ) : logs.length === 0 ? (
             <EmptyState title="Nothing logged yet" body="Your weigh-ins will show up here." />
           ) : (
-            <ul className="max-h-96 divide-y divide-border/60 overflow-y-auto">
+            <ul className="max-h-96 divide-y divide-border/40 overflow-y-auto">
               {[...logs].reverse().map((l) => {
                 const prevDelta = (() => {
                   const idx = logs.findIndex((x) => x.id === l.id);
@@ -307,12 +339,12 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
                   return l.weightKg - logs[idx - 1].weightKg;
                 })();
                 return (
-                  <li key={l.id} className="flex items-center gap-3 px-6 py-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <li key={l.id} className="flex items-center gap-4 px-6 sm:px-8 py-3.5 hover:bg-muted/30 transition-colors">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <Scale className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{l.weightKg.toFixed(1)} kg</p>
+                      <p className="text-base font-bold text-foreground">{l.weightKg.toFixed(1)} kg</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {fmtFull(l.loggedAt)}
                         {l.note ? ` · ${l.note}` : ""}
@@ -321,15 +353,16 @@ export function WeightLogView({ profile }: { profile: Profile | null }) {
                     {prevDelta !== null && prevDelta !== 0 && (
                       <Badge
                         variant="secondary"
-                        className={
+                        className={cn(
+                          "gap-1 rounded-full text-xs font-bold",
                           prevDelta < 0
-                            ? "gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "gap-1 bg-orange-500/10 text-orange-600 dark:text-orange-400"
-                        }
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                            : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30"
+                        )}
                       >
                         {prevDelta < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
                         {prevDelta > 0 ? "+" : ""}
-                        {prevDelta.toFixed(1)}
+                        {prevDelta.toFixed(1)} kg
                       </Badge>
                     )}
                     {prevDelta !== null && prevDelta === 0 && (
@@ -358,15 +391,18 @@ function StatCard({
   tone?: "neutral" | "good" | "bad";
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className={cn(
+      "glass-card card-hover rounded-3xl border border-border/70 p-5 sm:p-6 transition-all",
+      accent && "border-primary/40 shadow-md shadow-primary/10"
+    )}>
+      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
       <p
-        className={
-          "mt-1 text-lg font-semibold tracking-tight " +
-          (accent ? "text-primary " : "") +
-          (tone === "good" ? "text-emerald-600 dark:text-emerald-400 " : "") +
-          (tone === "bad" ? "text-orange-600 dark:text-orange-400 " : "")
-        }
+        className={cn(
+          "mt-2 text-2xl sm:text-3xl font-black tracking-tight",
+          accent && "text-primary",
+          tone === "good" && "text-emerald-600 dark:text-emerald-400",
+          tone === "bad" && "text-orange-600 dark:text-orange-400"
+        )}
       >
         {value}
       </p>

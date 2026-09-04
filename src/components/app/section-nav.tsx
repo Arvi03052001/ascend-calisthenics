@@ -28,39 +28,44 @@ export function SectionNav({
   return (
     <nav
       aria-label="Sections"
-      className="sticky top-16 z-30 border-b border-border/60 bg-background/85 backdrop-blur-md"
+      className="sticky top-16 z-30 border-b border-border/40 bg-background/70 backdrop-blur-xl py-2"
     >
-      <div className="mx-auto w-full max-w-6xl px-2 sm:px-6">
-        <ul className="flex items-stretch gap-1">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-center px-4 sm:px-6">
+        <div className="flex w-full sm:w-auto items-center gap-1.5 rounded-2xl border border-border/60 bg-muted/40 p-1 backdrop-blur-md shadow-inner">
           {ORDER.map((s) => {
             const Icon = ICONS[s];
             const isActive = active === s;
             return (
-              <li key={s} className="flex-1">
-                <button
-                  type="button"
-                  onClick={() => onChange(s)}
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "group relative flex w-full flex-col items-center justify-center gap-1 py-2.5 text-xs font-medium transition-colors sm:flex-row sm:gap-2 sm:py-3 sm:text-sm",
-                    isActive
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{LABELS[s]}</span>
+              <button
+                key={s}
+                type="button"
+                onClick={() => onChange(s)}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "relative flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold transition-all duration-200",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                )}
+              >
+                <Icon className={cn("h-4 w-4 transition-transform", isActive ? "scale-110" : "")} />
+                <span>{LABELS[s]}</span>
+                {s === "train" && (
                   <span
                     className={cn(
-                      "absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary transition-all sm:left-4 sm:right-4",
-                      isActive ? "opacity-100" : "opacity-0"
+                      "hidden sm:inline-block text-[10px] uppercase font-bold px-1.5 py-0.2 rounded-full",
+                      isActive
+                        ? "bg-black/20 text-white"
+                        : "bg-primary/15 text-primary"
                     )}
-                  />
-                </button>
-              </li>
+                  >
+                    6D
+                  </span>
+                )}
+              </button>
             );
           })}
-        </ul>
+        </div>
       </div>
     </nav>
   );

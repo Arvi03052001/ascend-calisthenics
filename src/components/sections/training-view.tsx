@@ -247,28 +247,36 @@ export function TrainingView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-            <Dumbbell className="h-6 w-6 text-primary" />Weekly Plan
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">6 days · Track progress · Mon to Sun week view</p>
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 space-y-6">
+      {/* Header & Week Selector */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm shadow-primary/15">
+            <Dumbbell className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              Weekly Calisthenics Routine
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              6-Day periodized progression split · Track volume & overload
+            </p>
+          </div>
         </div>
 
-        {/* Week Date Picker Navigation */}
-        <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-card p-1.5 shadow-sm">
+        {/* Week Date Picker Navigation Ribbon */}
+        <div className="flex items-center gap-1.5 rounded-2xl border border-border/60 bg-muted/40 p-1.5 backdrop-blur-md shadow-xs self-start sm:self-auto">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-background/80"
             onClick={() => handleWeekOffsetChange(weekOffset - 1)}
             title="Previous Week"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
-          <div className="flex items-center gap-1.5 px-2 text-xs font-semibold">
+          <div className="flex items-center gap-2 px-2 text-xs font-bold text-foreground">
             <Calendar className="h-3.5 w-3.5 text-primary" />
             <span>{loadingWeek ? "Loading..." : weekStatusData?.formattedWeekRange}</span>
           </div>
@@ -277,17 +285,17 @@ export function TrainingView() {
             <Button
               variant="secondary"
               size="sm"
-              className="h-7 px-2 text-[11px] font-medium"
+              className="h-7 rounded-xl px-2.5 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20"
               onClick={() => handleWeekOffsetChange(0)}
             >
-              Today
+              Current Week
             </Button>
           )}
 
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-background/80"
             onClick={() => handleWeekOffsetChange(weekOffset + 1)}
             title="Next Week"
           >
@@ -297,90 +305,107 @@ export function TrainingView() {
       </header>
 
       {/* Grid of 6 Days */}
-      <div className="mb-8 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {DAY_INFO.map((dayInfo, idx) => {
           const statusInfo = weekStatusData?.days[idx];
           const status = statusInfo?.status ?? "upcoming";
           const isToday = statusInfo?.isToday ?? false;
 
-          let cardBorderClass = "border-border/50 hover:border-border";
-          let bgTint = "bg-card";
+          let cardBorderClass = "border-border/60 hover:border-primary/40";
+          let bgTint = "bg-card/70";
 
           if (status === "completed") {
-            cardBorderClass = "border-emerald-500/40 dark:border-emerald-500/30";
+            cardBorderClass = "border-emerald-500/40 hover:border-emerald-500/60";
             bgTint = "bg-emerald-500/5 dark:bg-emerald-950/20";
           } else if (status === "in_progress" || isToday) {
-            cardBorderClass = "border-primary/50 shadow-sm";
+            cardBorderClass = "border-primary/60 shadow-md shadow-primary/10";
             bgTint = "bg-primary/5";
           } else if (status === "missed") {
-            cardBorderClass = "border-rose-500/30 dark:border-rose-500/20";
-            bgTint = "bg-rose-500/5 dark:bg-rose-950/10";
+            cardBorderClass = "border-rose-500/30 hover:border-rose-500/50";
+            bgTint = "bg-rose-500/5";
           }
+
+          // Split focus into tags
+          const focusTags = dayInfo.focus.split("+").map(t => t.trim());
 
           return (
             <Card
               key={dayInfo.day}
               className={cn(
-                "cursor-pointer border-2 transition-all hover:shadow-md",
+                "glass-card card-hover group cursor-pointer overflow-hidden rounded-3xl border transition-all duration-200",
                 cardBorderClass,
                 bgTint
               )}
               onClick={() => handleSelectDay(idx)}
             >
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">{dayInfo.day}</CardTitle>
-                    {isToday && (
-                      <Badge className="bg-primary px-1.5 py-0 text-[10px] font-bold text-primary-foreground">
-                        TODAY
-                      </Badge>
+              <CardHeader className="p-5 pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg font-bold tracking-tight group-hover:text-primary transition-colors">
+                        {dayInfo.day}
+                      </CardTitle>
+                      {isToday && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-black text-primary-foreground shadow-xs animate-pulse">
+                          TODAY
+                        </span>
+                      )}
+                    </div>
+                    {statusInfo?.formattedDate && (
+                      <p className="text-[11px] font-medium text-muted-foreground">
+                        {statusInfo.formattedDate}
+                      </p>
                     )}
                   </div>
 
                   {/* Status Badge */}
                   {status === "completed" && (
-                    <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/15 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="h-3 w-3" /> Completed
+                    <Badge className="gap-1 rounded-full border-emerald-500/30 bg-emerald-500/15 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" /> Done
                     </Badge>
                   )}
                   {status === "in_progress" && (
-                    <Badge className="gap-1 border-primary/30 bg-primary/15 text-[11px] font-semibold text-primary">
+                    <Badge className="gap-1 rounded-full border-primary/30 bg-primary/20 text-[11px] font-bold text-primary animate-pulse">
                       <Play className="h-3 w-3 fill-current" /> In Progress
                     </Badge>
                   )}
                   {status === "missed" && (
-                    <Badge className="gap-1 border-rose-500/30 bg-rose-500/15 text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                    <Badge className="gap-1 rounded-full border-rose-500/30 bg-rose-500/15 text-[11px] font-bold text-rose-600 dark:text-rose-400">
                       <XCircle className="h-3 w-3" /> Missed
                     </Badge>
                   )}
                   {status === "upcoming" && !isToday && (
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                    <Badge variant="outline" className="rounded-full text-[10px] text-muted-foreground border-border/60">
                       Upcoming
                     </Badge>
                   )}
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{dayInfo.focus}</span>
+                {/* Focus Pill Chips */}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {focusTags.map((tag, tagIdx) => (
+                    <span
+                      key={tagIdx}
+                      className="rounded-lg bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                    >
+                      {tag}
+                    </span>
+                  ))}
                 </div>
-
-                {statusInfo?.formattedDate && (
-                  <p className="mt-1 text-[11px] font-medium text-foreground/60">
-                    🗓️ {statusInfo.formattedDate}
-                  </p>
-                )}
               </CardHeader>
 
-              <CardContent className="pt-0">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <CardContent className="p-5 pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
-                    <Dumbbell className="h-3.5 w-3.5" />~18 exercises
+                    <Dumbbell className="h-3.5 w-3.5 text-primary/70" /> ~18 exercises
                   </span>
                   <span className="flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />~2 hours
+                    <Clock className="h-3.5 w-3.5 text-primary/70" /> ~2 hrs
                   </span>
                 </div>
+                <span className="inline-flex items-center gap-1 font-bold text-primary text-xs group-hover:translate-x-0.5 transition-transform">
+                  View →
+                </span>
               </CardContent>
             </Card>
           );
@@ -847,39 +872,138 @@ function DayDetail({ dayIndex, weekStartStr, dayDateFormatted, onBack }: {
   }, [dbExercises]);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
-      <button onClick={onBack} className="mb-4 text-sm text-muted-foreground hover:text-foreground">← Back to week</button>
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {dayInfo.day} {dayDateFormatted && <span className="text-lg font-normal text-muted-foreground">({dayDateFormatted})</span>}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{dayInfo.focus}</p>
+    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8 space-y-6">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onBack}
+        className="gap-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/60"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back to Weekly Routine
+      </Button>
+
+      {/* Day Session Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card via-card/60 to-primary/5 p-6 sm:p-8 backdrop-blur-xl shadow-lg shadow-black/5">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+                {dayInfo.day}
+              </h1>
+              {dayDateFormatted && (
+                <span className="rounded-full border border-border/60 bg-muted/50 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                  🗓️ {dayDateFormatted}
+                </span>
+              )}
+            </div>
+
+            {/* Muscle Focus Pills */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {dayInfo.focus.split("+").map((f, i) => (
+                <span key={i} className="rounded-lg bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-bold text-primary">
+                  {f.trim()}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {status === "completed" && (
+              <Badge className="gap-1.5 rounded-full border-emerald-500/30 bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Completed Session
+              </Badge>
+            )}
+            {status === "in_progress" && (
+              <Badge className="gap-1.5 rounded-full border-primary/30 bg-primary/20 px-3 py-1 text-xs font-bold text-primary animate-pulse">
+                <Play className="h-3.5 w-3.5 fill-current" /> Live Session
+              </Badge>
+            )}
+            {(status === "in_progress" || status === "completed") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowReset(true)}
+                disabled={resetting}
+                className="gap-1.5 rounded-xl text-xs text-muted-foreground hover:text-destructive border-border/60"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            )}
+            {status === "completed" && !editMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditMode(true)}
+                className="gap-1.5 rounded-xl text-xs"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Edit Logs
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {status === "completed" && <Badge className="gap-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />Completed</Badge>}
-          {status === "in_progress" && <Badge className="gap-1 bg-primary/15 text-primary"><Play className="h-3.5 w-3.5" />In progress</Badge>}
-          {(status === "in_progress" || status === "completed") && <Button variant="outline" size="sm" onClick={() => setShowReset(true)} disabled={resetting} className="gap-1.5 text-muted-foreground"><RotateCcw className="h-3.5 w-3.5" />Reset</Button>}
-          {status === "completed" && !editMode && <Button variant="outline" size="sm" onClick={() => setEditMode(true)} className="gap-1.5"><Save className="h-3.5 w-3.5" />Edit</Button>}
-        </div>
+
+        {/* Progress bar when in progress */}
+        {status === "in_progress" && (
+          <div className="mt-6 pt-5 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex-1 space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-muted-foreground uppercase tracking-wider text-[10px]">Session Progress</span>
+                <span className="text-primary font-black">
+                  {completedCount} of {entries.length} sets completed ({entries.length > 0 ? Math.round((completedCount / entries.length) * 100) : 0}%)
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-300 shadow-sm"
+                  style={{ width: `${entries.length > 0 ? (completedCount / entries.length) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleComplete}
+              disabled={completing || completedCount === 0}
+              className="gap-2 rounded-xl font-bold bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90 shrink-0"
+            >
+              {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              Complete Workout
+            </Button>
+          </div>
+        )}
       </div>
+
       {(loading || loadingExercises) ? (
-        <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        <div className="flex h-48 items-center justify-center text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+          <span className="text-sm font-medium">Loading session routine...</span>
+        </div>
       ) : (
         <>
           {(status === "none" || status === "planned") && (
-            <Card className="mb-6 border-primary/20"><CardContent className="flex flex-col items-center gap-3 p-5 text-center">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Play className="h-6 w-6" /></span>
-              <div><h2 className="text-base font-semibold">Ready to train?</h2><p className="mt-1 text-xs text-muted-foreground">Click start to open logging fields for each exercise below.</p></div>
-              <Button onClick={handleStart} disabled={starting} size="lg" className="gap-2">{starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}Start workout</Button>
-            </CardContent></Card>
-          )}
-          {status === "in_progress" && (
-            <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-              <span className="text-sm text-muted-foreground">{completedCount}/{entries.length} logged</span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${entries.length > 0 ? (completedCount / entries.length) * 100 : 0}%` }} /></div>
-              <Button onClick={handleComplete} disabled={completing || completedCount === 0} size="sm" className="gap-1.5">{completing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}Complete</Button>
-            </div>
+            <Card className="glass-card card-hover border-primary/30 rounded-3xl overflow-hidden shadow-sm">
+              <CardContent className="flex flex-col items-center gap-4 p-6 sm:p-8 text-center">
+                <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
+                  <Play className="h-7 w-7 fill-current ml-0.5" />
+                </span>
+                <div className="space-y-1 max-w-sm">
+                  <h2 className="text-lg font-bold">Ready to Start Today&apos;s Workout?</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Hit start to unlock live set logging, rest timers, and AI progressive overload recommendations.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleStart}
+                  disabled={starting}
+                  size="lg"
+                  className="gap-2 rounded-xl font-bold text-sm bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:bg-primary/90 px-8"
+                >
+                  {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-current" />}
+                  Start Workout
+                </Button>
+              </CardContent>
+            </Card>
           )}
           <div className="space-y-6">
             {PHASE_ORDER.map(phase => {
