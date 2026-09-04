@@ -22,7 +22,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { secondsToHHMMSS, hhmmssToSeconds, formatHumanTime } from "@/lib/date-utils";
+import { secondsToHHMMSS, hhmmssToSeconds, formatHumanTime, getMonday, formatIndianDate } from "@/lib/date-utils";
 import { getSkillRegression, type RegressionOption } from "@/lib/skill-regressions";
 import { ExerciseDemoModal } from "@/components/ui/exercise-demo-modal";
 
@@ -86,17 +86,113 @@ type DayStatusInfo = {
   totalSets: number;
 };
 
+const DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+const DAY_PARAM_MAP: Record<string, number> = {
+  monday: 0, mon: 0, "0": 0,
+  tuesday: 1, tue: 1, "1": 1,
+  wednesday: 2, wed: 2, "2": 2,
+  thursday: 3, thu: 3, "3": 3,
+  friday: 4, fri: 4, "4": 4,
+  saturday: 5, sat: 5, "5": 5,
+};
+
+function getInitialDay(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const dayParam = params.get("day")?.toLowerCase();
+    if (dayParam && DAY_PARAM_MAP[dayParam] !== undefined) {
+      return DAY_PARAM_MAP[dayParam];
+    }
+    const pathParts = window.location.pathname.toLowerCase().split("/").filter(Boolean);
+    if (pathParts[0] === "train" && pathParts[1] && DAY_PARAM_MAP[pathParts[1]] !== undefined) {
+      return DAY_PARAM_MAP[pathParts[1]];
+    }
+    const activeTab = params.get("tab")?.toLowerCase() || sessionStorage.getItem("ascend_active_section");
+    if (activeTab === "train") {
+      const saved = sessionStorage.getItem("ascend_train_day");
+      if (saved && DAY_PARAM_MAP[saved] !== undefined) {
+        return DAY_PARAM_MAP[saved];
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function getInitialWeek(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const weekParam = params.get("week");
+    if (weekParam && !isNaN(Number(weekParam))) {
+      return Number(weekParam);
+    }
+  } catch {}
+  return 0;
+}
+
 export function TrainingView() {
-  const [selectedDay, setSelectedDay] = React.useState<number | null>(null);
+  const [selectedDay, setSelectedDay] = React.useState<number | null>(getInitialDay);
   const [showChecklist, setShowChecklist] = React.useState(false);
   const [showRules, setShowRules] = React.useState(false);
-  const [weekOffset, setWeekOffset] = React.useState(0);
+  const [weekOffset, setWeekOffset] = React.useState<number>(getInitialWeek);
   const [weekStatusData, setWeekStatusData] = React.useState<{
     weekStartStr: string;
     formattedWeekRange: string;
     days: DayStatusInfo[];
   } | null>(null);
   const [loadingWeek, setLoadingWeek] = React.useState(true);
+
+  // Sync state when browser back/forward buttons are used
+  const syncStateFromLocation = React.useCallback(() => {
+    setSelectedDay(getInitialDay());
+    setWeekOffset(getInitialWeek());
+  }, []);
+
+  React.useEffect(() => {
+    window.addEventListener("popstate", syncStateFromLocation);
+    return () => window.removeEventListener("popstate", syncStateFromLocation);
+  }, [syncStateFromLocation]);
+
+  const handleSelectDay = React.useCallback((idx: number | null) => {
+    setSelectedDay(idx);
+    try {
+      const url = new URL(window.location.href);
+      if (idx !== null && DAY_NAMES[idx]) {
+        url.searchParams.set("tab", "train");
+        url.searchParams.set("day", DAY_NAMES[idx]);
+        sessionStorage.setItem("ascend_train_day", DAY_NAMES[idx]);
+      } else {
+        url.searchParams.delete("day");
+        sessionStorage.removeItem("ascend_train_day");
+      }
+      if (url.pathname !== "/") {
+        url.pathname = "/";
+      }
+      window.history.pushState({ dayIndex: idx }, "", url.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const handleWeekOffsetChange = React.useCallback((offset: number) => {
+    setWeekOffset(offset);
+    try {
+      const url = new URL(window.location.href);
+      if (offset !== 0) {
+        url.searchParams.set("week", String(offset));
+      } else {
+        url.searchParams.delete("week");
+      }
+      if (url.pathname !== "/") {
+        url.pathname = "/";
+      }
+      window.history.pushState({ weekOffset: offset }, "", url.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   // Compute Monday date string based on weekOffset in a timezone-safe manner
   const targetMondayStr = React.useMemo(() => {
@@ -111,6 +207,18 @@ export function TrainingView() {
     return `${year}-${month}-${day}`;
   }, [weekOffset]);
 
+  const fallbackFormattedDate = React.useMemo(() => {
+    if (selectedDay === null) return undefined;
+    try {
+      const monday = getMonday(targetMondayStr);
+      const dayDate = new Date(monday);
+      dayDate.setUTCDate(monday.getUTCDate() + selectedDay);
+      return formatIndianDate(dayDate);
+    } catch {
+      return undefined;
+    }
+  }, [selectedDay, targetMondayStr]);
+
   const fetchWeekStatus = React.useCallback(() => {
     setLoadingWeek(true);
     fetch(`/api/training-workout/week-status?weekStart=${targetMondayStr}`, { cache: "no-store" })
@@ -124,14 +232,14 @@ export function TrainingView() {
     fetchWeekStatus();
   }, [fetchWeekStatus]);
 
-  if (selectedDay !== null && weekStatusData) {
+  if (selectedDay !== null) {
     return (
       <DayDetail
         dayIndex={selectedDay}
-        weekStartStr={weekStatusData.weekStartStr}
-        dayDateFormatted={weekStatusData.days[selectedDay]?.formattedDate}
+        weekStartStr={weekStatusData?.weekStartStr ?? targetMondayStr}
+        dayDateFormatted={weekStatusData?.days[selectedDay]?.formattedDate ?? fallbackFormattedDate}
         onBack={() => {
-          setSelectedDay(null);
+          handleSelectDay(null);
           fetchWeekStatus();
         }}
       />
@@ -154,7 +262,7 @@ export function TrainingView() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => setWeekOffset(prev => prev - 1)}
+            onClick={() => handleWeekOffsetChange(weekOffset - 1)}
             title="Previous Week"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -170,7 +278,7 @@ export function TrainingView() {
               variant="secondary"
               size="sm"
               className="h-7 px-2 text-[11px] font-medium"
-              onClick={() => setWeekOffset(0)}
+              onClick={() => handleWeekOffsetChange(0)}
             >
               Today
             </Button>
@@ -180,7 +288,7 @@ export function TrainingView() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => setWeekOffset(prev => prev + 1)}
+            onClick={() => handleWeekOffsetChange(weekOffset + 1)}
             title="Next Week"
           >
             <ChevronRight className="h-4 w-4" />
@@ -217,7 +325,7 @@ export function TrainingView() {
                 cardBorderClass,
                 bgTint
               )}
-              onClick={() => setSelectedDay(idx)}
+              onClick={() => handleSelectDay(idx)}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">

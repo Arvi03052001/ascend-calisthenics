@@ -66,6 +66,9 @@ export function UserMenu({
           disabled={signingOut}
           onClick={async () => {
             setSigningOut(true);
+            try {
+              sessionStorage.clear();
+            } catch {}
             await signOut({ redirect: false });
           }}
         >

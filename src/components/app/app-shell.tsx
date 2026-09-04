@@ -29,12 +29,69 @@ type Profile = {
   onboardedAt?: string | null;
 };
 
+function getInitialSection(): Section {
+  if (typeof window === "undefined") return "home";
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab")?.toLowerCase();
+    if (tab === "weight" || tab === "train" || tab === "home") {
+      return tab as Section;
+    }
+    const pathname = window.location.pathname.toLowerCase();
+    if (pathname.startsWith("/train")) return "train";
+    if (pathname.startsWith("/weight")) return "weight";
+    if (pathname === "/home") return "home";
+
+    const saved = sessionStorage.getItem("ascend_active_section");
+    if (saved === "weight" || saved === "train" || saved === "home") {
+      return saved as Section;
+    }
+  } catch {}
+  return "home";
+}
+
 export function AppShell() {
   const { data: session } = useSession();
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [section, setSection] = React.useState<Section>("home");
+  const [section, setSection] = React.useState<Section>(getInitialSection);
+
+  const syncSectionFromLocation = React.useCallback(() => {
+    const next = getInitialSection();
+    setSection(next);
+  }, []);
+
+  React.useEffect(() => {
+    syncSectionFromLocation();
+    window.addEventListener("popstate", syncSectionFromLocation);
+    return () => window.removeEventListener("popstate", syncSectionFromLocation);
+  }, [syncSectionFromLocation]);
+
+  const handleSectionChange = React.useCallback((nextSection: Section) => {
+    setSection(nextSection);
+    try {
+      sessionStorage.setItem("ascend_active_section", nextSection);
+      const url = new URL(window.location.href);
+      if (nextSection === "home") {
+        url.searchParams.delete("tab");
+        url.searchParams.delete("day");
+        url.searchParams.delete("week");
+      } else {
+        url.searchParams.set("tab", nextSection);
+        if (nextSection !== "train") {
+          url.searchParams.delete("day");
+          url.searchParams.delete("week");
+        }
+      }
+      if (url.pathname !== "/") {
+        url.pathname = "/";
+      }
+      window.history.pushState({ section: nextSection }, "", url.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   const fetchProfile = React.useCallback(async () => {
     setLoading(true);
@@ -69,7 +126,7 @@ export function AppShell() {
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <button
             type="button"
-            onClick={() => setSection("home")}
+            onClick={() => handleSectionChange("home")}
             className="transition-opacity hover:opacity-80"
             aria-label="Go to home"
           >
@@ -82,7 +139,7 @@ export function AppShell() {
         </div>
       </header>
 
-      {onboarded && <SectionNav active={section} onChange={setSection} />}
+      {onboarded && <SectionNav active={section} onChange={handleSectionChange} />}
 
       <main className="flex-1">
         {loading ? (
@@ -99,7 +156,7 @@ export function AppShell() {
         ) : !onboarded ? (
           <Onboarding name={session?.user?.name} onDone={(p) => setProfile(p as Profile)} />
         ) : section === "home" ? (
-          <DashboardHome profile={profile as Profile} onNavigate={setSection} />
+          <DashboardHome profile={profile as Profile} onNavigate={handleSectionChange} />
         ) : section === "weight" ? (
           <WeightLogView profile={profile as Profile} />
         ) : section === "train" ? (
